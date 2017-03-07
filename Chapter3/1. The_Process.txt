@@ -47,7 +47,7 @@ Process State
         - sleeping(blocked), waiting for some condition to exist.
         - when condition exists, the kernel sets the process's state to TASK_RUNNING
     TASK_UNINTERRUPTIBLE
-        - identical to TASK_INTERRUPTIBLE except that is does not wake up and becom runnable
+        - identical to TASK_INTERRUPTIBLE except that is does not wake up and become runnable
         - This is used in situations where the process must wait without interruption or 
           when the event is expected to occur quite quickly.
         - 이 상태에 있는 task는 signals에 반응하지 않기 때문에 TACK_INTERRUPTIBLE 보다 덜 쓰인다.

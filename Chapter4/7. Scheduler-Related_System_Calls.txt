@@ -1,0 +1,51 @@
+Scheduler-Related System Calls
+    scheduler parameter를 관리하기 위한 system calls
+    -> manipulation of process priority, scheduling policy, and processor affinity
+    -> mechanism to yield the processor to other tasks
+
+
+Scheduling Policy and Priority-Related System Calls
+    sched_setscheduler(), sched_getscheduler() : 
+        set and get a given process's scheduling policy and real-time priority
+        task_struct 안에 있는 policy와 rt_priority 값을 읽어오고 쓰는 작업이 중요하다.
+
+    sched_setparam(), sched_getparam() :
+        set and get a process's real-time priority.
+        이 system call들은 rt_priority를 특별한 sched_param structure에 encode하는 일만 한다.
+
+    sched_get_priority_max(), sched_set_priority_min() :
+        get maximum or minimum priorities for a given scheduling policy.
+
+    nice() :
+        for normal tasks, process's static priority를 주어진 값만큼 증가시킨다.
+        nice() calls set_user_nice()
+        set_user_nice() : 
+            task의 task_struct에 있는 static_prio와 prio 값을 set해주는 함수
+
+
+Processor Affinity System Calls
+    task의 task_struct의 cpus_allowed라는 bitmask로 저장된다.
+    bitmask의 bit 하나당 processor 하나를 뜻 한다.
+    default : set all bit -> can runnalbe any processor
+    sched_setaffinity() :
+        bitmask를 설정해줄 수 있다.
+    sched_getaffinity() : 
+        현재 cpus_allowed bitmask를 return한다.
+
+    kernel은 간단한 방법으로 hard affinity를 적용한다.
+        1. process가 생성될 때 parent의 affinity bitmask를 상속받는다. 
+            parent가 허용된 processor에서만 실행되고 있기 때문에 child 또한 허용된 processor에서 실행된다.
+        2. affinity bitmask가 변경되면 kernel은 migration thread를 이용해 task를 적합한 processor에 넣어준다.
+        3. load balancer가 task를 허용된 processor로만 pull한다.
+
+
+Yielding Processor Time
+    sched_yield() : 
+        명시적으로 waiting process에게 processor를 양보하는 system call.
+        이 함수는 process를 active array에서 없애고, expired array로 넣음으로써 실행된다. process를 priority list의 끝에 놓는다.
+            -> 한동안은 이 process는 실행되지 않을 것을 보장한다.
+
+        real-time task의 경우, 절대 expired되지 않기 때문에 그들의 priority list의 끝에 놓여지긴 하지만 expired array에 넣어지지는 않는다.
+
+        kernel code는 task의 state가 TASK_RUNNING인지 확인하고 sched_yield()를 호출하는 yield()를 사용한다.
+        user-space application은 sched_yield() system call을 사용한다.
