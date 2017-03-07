@@ -1,0 +1,36 @@
+The Linux Scheduling Algorithm
+
+Scheduler Classes
+    Linux scheduler는 process의 type마다 다른 알고리즘을 적용하기 위해 모듈화되어있다.
+        -> scheduler classes
+    scheduler class는 각각 priority가 있는데 base scheduler code는 priority 순으로 scheduler class를 iterate한다.
+    runnable process를 가진 scheduler class 중에 priority가 가장 높은 
+     scheduler class가 다음에 어떤 process가 실행될지 결정한다.
+
+    CFS는 normal process들을 위한 scheduler class로 kernel/sched_fair.c에 정의되어있다.
+
+
+Process Scheduling in Unix Systems
+    traditional Unix systems scheduling에서의 문제점
+        1. 각각의 nice value에 timeslice의 절댓값을 결정해야 한다. 이 때, high nice value(low priority)인 process 2개가
+            실행되면 각각의 timeslice가 작기 때문에 low nice value일 때보다 switching이 자주 일어난다.
+        2. nice value와 nice value에 mapping된 timeslice값에 대한 문제이다. 
+            ex) nice value 19, 20 -> timeslice 95, 100 -> almost equal
+                nice value 1,2 -> timeslice 5, 10 -> double
+        3. nice value에 absoulte timeslice를 할당해줄 때, timer tick으로 인한 한계가 생긴다.
+            연속된 2개의 nice value 사이의 timeslice 차이가 최대 10초 최소 1초이고,                      // Chapter 11
+            minimum timeslice도 최대 10초 최소 1초이고,
+            timeslices은 different timer ticks을 가지고 변해야한다.
+        4. interactive task에 대해 이 task가 wake up 했을 때, priority-based scheduler에서 이 상황을 handling하는 문제이다.
+            interactive task는 wake up 했을 때 timeslice를 다 썼다 하여도 즉시 실행시키려 할 것이다. 이것은 interactive
+            performance를 향상시킬 수는 있으나 나머지 시스템들의 관점에서 보면 unfair하게 한 process에게 processor time이 할당되는
+            것으로 볼 수 있다.
+
+    2번째 문제점은 nice value를 geometric하게 만들어 주면 해결된다. 또 timeslice를 nice value에 mapping을 timer tick과 
+    분리하면 3번째 문제를 해결할 수 있다. 그러나 이러한 solution들은 근본적인 문제를 속이고 있다.
+    * 근본적인 문제 : absolute timeslice를 할당하는 것이 constant한 switching rate를 주지만 variable한 fairness를 준다는 것.
+
+    CFS가 택한 접근법은 timeslice allotment에 대한 근본적인 재고이다. 
+        -> timeslice에서 완전히 벗어나서 proportion of the processor를 할당하자.
+        -> constant한 fairness but a variable switching rate.
+ 

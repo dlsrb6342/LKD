@@ -1,0 +1,30 @@
+Multitasking
+    Linux system can have many processes in memory but, say, only one in a runnable state.
+    
+    Multitasking OS는 cooperative multitasking과 preemptive multitasking으로 나뉘어진다.
+    Linux는 preemptive multitasking이다.
+    preemptive multitasking에서는 process가 언제 중지할지, 시작할지 scheduler가 결정한다.
+    보통 한 process가 실행되는 시간은 preempt되기 전에 결정되어있는데 이것을 process의 timeslice라고 한다.
+
+    cooperative multitasking에서는 process가 자발적으로 중지하지 않은한 process를 중지하지 않는다.
+    process가 자발적으로 중지하는 행동을 yielding이라고 한다.
+    단점 : 
+        scheduler가 process의 실행시간을 고려하여 결정을 못한다.
+        process가 사용자의 의도보다 더 길게 processor를 독점할 수 있다.
+        a hung process that never yield가 전체 시스템은 down시킬 수 있다.
+
+
+Linux's Process Scheduler
+    O(1) scheduler : 
+        2.5 kerenl 부터.
+        performed admirably and scaled effortlessly as Linux supported lagre "iron" with tens if not 100 processors.    //
+        several pathological failures related to scheduling latency-sensitive applications.
+        latency-sensitive application(interactive processes)는 사용자와 interact가 있는 모든 application을 말한다.
+        O(1) scheduler is ideal for large server workloads but not in desktop system.
+
+    2.6 kernel 개발 초기에 O(1) scheduler의 interactive performance를 향상시킨 여러 scheduler들을 선보였다.
+    Rotating Staircase Deadline scheduler:
+        위의 여러 scheduler 중 가장 훌륭한 scheduler.
+        fair scheduling의 개념을 소개함.
+        queueing theory를 Linux의 process scheduler에 적용시켰다.
+        이 scheduler 이후에 Linux kernel 2.6.23에서 process scheduler를 Completely Fair Scheduler(CFS)로 교체한다.

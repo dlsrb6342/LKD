@@ -1,0 +1,87 @@
+Policy
+    the behavior of the scheduler
+    determines the overall feel of a system
+    is responsible for optimally utilizing processor time
+
+
+I/O-Bound v.s. Processor-Bound Processes
+    I/O Bound Process:
+        I/O request를 보내고 기다리는 것에 많은 시간을 소비하는 process
+        I/O를 기다리면서 Block되기 때문에 이런 process들은 짧은 시간동안만 실행될 수 있다. 
+        * I/O : any blockable resource(keyboard, network, disk..)
+
+    Processor-Bound Process:
+        코드를 실행하는데 많은 시간을 보내는 process이다.
+        I/O request로 인한 block이 자주 없기 때문에 preempt될 때까지 계속 실행된다. 
+        I/O-driven이 아니기 때문에, system response가 scheduler에게 이 process를 자주 실행하라고 명령하지 않는다.
+        그래서 scheduler는 이런 process를 자주 실행하지는 않지만 오래 실행하게 한다.
+
+    하지만 이런 분류는 mutually exclusive하지 않다. Process는 2가지 성향을 동시에 나타낼 수 있다.
+
+    scheduling policy's two goal : 
+        low latency : process response time이 빨라야 한다.
+        high throughput : maximal system utilization
+        이 2가지 목표를 달성하기 위해 scheduler는 다른 process들과의 fairness를 떨어뜨리지 않으면서 
+         어떤 process 실행하는 것이 가장 가치있는지 결정하기 위해 복잡한 알고리즘을 쓰기도 한다.
+        Linux에서는 interactive response와 desktop performance를 좋게 하기 위해 process response를 최적화한다.
+            -> low latency, I/O-bound process를 더 선호한다.
+            -> creative manner로 processor-bound process를 등한시하지 않으면서 해낸다.
+
+
+Process Priority
+    보통의 scheduling algorithm은 priority-based scheduling이다.
+    일반적인 생각으로는 priority가 높은 process가 먼저 실행되고 같은 priority이면 round-robin을 택한다.
+    또 어떤 시스템들에서는 높은 priority를 가진 process가 긴 timeslice를 갖는다. 
+    timeslice가 남아있고 priority가 높은 process가 항상 먼저 실행된다.
+    이 때에는 사용자나 시스템 모두 process의 priority를 정할 수 있다.
+
+    Linux kernel에는 2가지 priority range가 있다. 
+    1. nice value : 
+        -19 ~ 20의 수로 기본값은 0이다. 클수록 priority가 낮다.
+        lower nice value process가 시스템 processor의 larger proportion을 받는다.
+        the standard priority range used in all Unix systems
+        in Linux, it is a control over the proportion of timeslice
+    2. real-time priority :
+        0 ~ 99 사이의 값이지만 변경가능하다. 클수록 priority가 높다.
+        모든 real-time process는 보통의 process보다 priority가 높다.
+            -> real-time priority와 nice value는 분리된 별개의 값이다.
+        Linux는 Unix standards(POSIX.1b)에 준거하여 real-time priority를 구현했다.
+
+
+Timeslice
+    process가 preempt되기 전까지 얼마나 실행될 수 있는지를 나타내는 numeric value이다.
+    The scheduler policy mush dictate a default timeslice, which is not a trivial exercise.         //
+    timeslice가 너무 크면 interactive performance가 안좋아진다.
+        -> 시스템이 더 이상 application이 동시에 실행한다고 느껴지지 않게 된다.
+    timeslice가 너무 짧으면 process switch에 많은 overhead가 생기고 시스템 시간의 많은 부분이 낭비되게 된다.
+
+    많은 OS에서, timeslice는 보통 10 ms 이하이다.
+    Linux's CFS scheduler에서는 process에게 직접 timeslice를 할당하지 않는다. 대신, CFS는 process에게
+     processor의 proportion을 할당해준다.
+        -> process가 할당받은 processor time의 양은 a function of the load of the system이다.             //
+    할당받는 proportion은 각각의 process의 nice value에 영향을 받는다.
+        높은 nice value -> 낮은 weight -> 적은 proportion of the processor
+
+    Linux의 CFS scheduler에서는 새롭게 실행될 processor가 어느정도의 proportion of processor를 소모할지에 대해 결정하는 기능이다.       //
+    만약 현재 실행중인 process보다 proportion of processor가 적다면, 실행중인 process를 preempt하고 즉시 실행된다.
+
+
+The Scheduling Policy in Action
+    Text editor : I/O-bound , Video encoder : Processor-bound
+
+    two goals for the text editor
+        1. text editor가 실행되길 원할 때 항상 processor time을 가질 수 있게 하기 위해 large amount of processor time을 준다.
+        2. 사용자의 input이 있을 때 video encoder를 preempt할 수 있어야 한다.
+        -> 이 2가지 목표를 달성함으로써 good interactive performance와 사용자의 input에 반응을 할 수 있다.
+
+    대부분의 OS에서는 text editor에게 높은 priority와 큰 timeslice를 줘서 2개의 목표를 달성한다.
+    Linux에서는 조금 다른 방식으로 한다. 만약 실행중인 process가 video encoder와 text editor만 있다면,
+     둘에게 같은 nice level 준다. -> proportion of processor가 똑같이 50%
+     하지만 text editor는 대부분의 시간을 block되어있기 때문에 50%보다 덜 쓰고 video encoder는 encoding을 빨리 끝내기 위해 50%보다 더 쓴다. 
+
+    text editor가 사용자의 input을 받아 wake up됐을 때, CFS는 text editor가 받은 50%보다 덜 썼다는 것을 알고 있다.
+    CFS는 text editor가 video encoder보다 짧은 시간동안 실행되었다고 결정하고 fair share of the processor를 주려고 할 때,
+    video encoder는 preempt되고 text editor가 실행된다.
+
+    이 방법으로 계속 진행해도 text editor는 50%를 사용하지 않기 때문에 CFS와 함께, 
+     text editor는 원할 때마다 항상, video encoder는 나머지 시간동안 실행될 수 있게 해준다.
