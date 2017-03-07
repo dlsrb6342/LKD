@@ -1,0 +1,74 @@
+Process Creation
+    Unix takes two steps( fork(), exec() ) to create process.
+    fork() - creates a child process that is a copy of the current task.
+             PID, certain resources, and statistics, such as pending signals, are different from parent.
+    exec() - loads a new executable into the address space and begins executing it.
+
+
+Copy-On-Write
+    fork()를 통해 parent의 모든 내용을 child에게 복사하는 것은 비효율적이다. 
+    특히 새로운 process가 바로 새로운 내용을 쓰려고 할 때, 복사해온 내용은 무의미해진다.
+    In Linux, fork() is implemented through the use of Copy-On-Write pages.
+    Copy-On-Write - data 복사를 지연시키거나 아예 막는 기술
+                  - process address space를 복제하기보다는 하나의 single copy를 child와 parent가 공유하는 방식이다.
+
+    data는 read-only로 서로 공유하며 사용하다가 한 process가 write를 하면, 
+    이 때에 duplicate가 만들어지고 서로 unique copy를 갖게 된다.
+    if the pages are never written, they never need to be copied.
+        -> example : exec() is called immediately after fork().
+
+    The only overhead incurred by fork() is the duplication of the parent's page tables
+        and the creation of a unique process descriptor for the child.
+    보통의 process들은 fork를 한 후에 바로 new executable image를 실행시킨다.
+        -> Copy-On-Write가 많은 양의 data가 복사되는 낭비를 막아준다.
+
+
+Forking
+    Linux implements fork() via clone() system call. This call takes a series of flags that
+    specify which resources the parent and child process should share.
+    clone() -> do_fork()
+    The bulk of the work in forking is handled by do_fork()
+    do_fork() calls copy_process() and then starts the process running.
+    
+    copy_process() -
+        1. 이 함수는 dup_task_struct()라는 함수를 call한다. 
+            dup_task_sturct()는 새로운 kernel stack, thread_info struct, and task_struct를 만드는데 
+            이 때에 child process descriptor는 parent process descriptor와 동일하다.
+        2. new child process가 현재 user의 총 process의 갯수 제한을 초과하진 않았는지 체크한다.
+        3. process descriptor의 여러 member의 값을 초기화하거나 초기값으로 정해준다. 
+            부모로부터 상속받지 않은 process descriptor의 member는 주로 통계적인 정보이다.
+            task_struct의 값들의 대부분은 바뀌지 않고 남아있는다.
+        4. child가 아직 실행되지 않았다는 것을 확실히 하기 위해 child의 state를 TASK_UNINTERRUPTIBLE로 해준다.
+        5. task_sturct의 flags member의 값을 정해주기 위해 copy_flags()를 호출한다.
+            PF_SUPERPRIV flag : task가 superuser privileges를 사용하는지 의미 -> clear
+            PF_FORKNOEXEC flag : process가 아직 exec()를 호출하지 않았음을 의미 -> set
+        6. new task에게 PID를 할당해주기 위해 alloc_pid()를 호출한다.
+        7. clone() 함수를 통해 넘어온 flag에 따라 (open files, filesystem information, signal handlers,
+            process address space, and namespace) 를 공유하거나 복사한다. 이 resource들은 보통 한 process의
+            threads들 사이에서는 공유되고 나머지 task들에 대해서는 unique하기 때문에 복사된다.
+        8. copy_process() 함수가 끝이 나고 caller에게 new child를 가리키는 pointer를 return해준다.
+
+    copy_process()가 성공적으로 return했을 때 do_fork()는 new child를 깨우고 실행시킨다. kernel은 의도적으로 child
+    process를 먼저 실행시킨다. child가 바로 exec()를 호출하는 보통의 경우, parent가 먼저 실행되서 address space에 무엇인가
+    쓰기 시작해서 발생하는 Copy-On-Write overhead를 없애준다.
+ 
+    vfork()
+        vfork() has same effect as fork(), except that the page table entries of the parent process are not copied.
+        대신 child는 parent의 address space에서 단독적인 thread로써 실행되고, parent는 child가 exec()를 호출하거나 끝나기까지 block된다.
+        child는 address space에 쓰기 권한이 없다. 
+        vfork()가 옛날 처음 소개되었을 때에는 fork()를 구현하는데에 Copy-On-Write pages가 사용되지 않았을 때였다. 따라서 이 시기에 vfork()는
+        좋은 optimization이었다. Copy-On-Write, child-runs-first semantics가 있는 오늘날의 vfork()의 이점은 parent의 page table
+        entries를 전부 copy해오지 않는다는 점뿐이다. Linux가 언젠가 page table entries에 대해 Copy-On-Write를 적용시킨다면 vfork()의
+        이점은 없어지게 된다. 
+        semantics of vfork()가 복잡하기 때문에 system은 이상적으로 vfork()를 필요로 하지 않고 kernel은 따로 implement하지 않는다.
+        vfork()는 평범한 fork()로도 implement할 수 있다.(Linux version 2.2 이하에서 하던 방식)
+        특별한 flag로 clone() system call을 통해 구현한다.
+            1. copy_process()에서, task_struct의 member인 vfork_done을 NULL로 한다.
+            2. do_fork()에서, special flag가 주어졌다면 vfork_done이 특정 address를 가리키게 한다.
+            3. child가 처음 실행되고 나서, parent는 실행되는 것이 아니라 child가 vfork_done pointer를 통해 signal를 주길 기다린다.
+            4. mm_release()에서, vfork_done이 NULL인지 체크한다. NULL이 아니라면 parent가 signal를 받게 된다.
+                * mm_release() : task가 한 memory address space에서 나갈 때 불리는 함수
+            5. do_fork()로 돌아와서 parent가 깨워지고 return 된다.
+        이 과정이 아무 error없이 잘 진행된다면, child는 새로운 address space에서 실행되게 되고 parent도 원래의 address space에서 다시
+        실행된다. overhead는 작지만 implementation이 pretty하지 않다.
+      

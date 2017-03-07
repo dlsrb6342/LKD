@@ -1,0 +1,76 @@
+The Process
+    process - executing program code + a set of resources
+            - an active program + related resources
+
+    fork()  - in Linux, creat process / caller:parent new:child
+            - after call, resume parent process and start new process. 
+            - is implemented via clone()
+
+    exit()  - terminates process, free all its resources exited process is placed  into a 
+              zombie state until the parent call wait(), waitpid()
+
+    wait4() - parent inquire about the status of a terminated child                                         //
+
+
+Process Descriptor and the Task Structure
+    task list   - the circular doubly linked list of processes
+                - each element is a process descriptor of the type struct task_struct
+                  (in <linux/sched.h>)
+
+    task_struct - contains all the information that kernel has and needs about process
+                - allocated via the slab allocator to provide object reuse and cache coloring
+                - register의 갯수가 적은 32비트 머신에서 추가적인 register없이 stack pointer를 
+                  가지고 process desriptor의 위치를 계산하기 위해 kernel stack의 끝에 저장한다.
+
+    thread_info - task_struct, exec_domain 등을 가지고 있는 sturct
+                - Each task's thread_info structure is allocated at the end of its stack
+
+
+Storing the Process Descriptor
+    system identifies processes by PID(the opaque type pid_t)                                               //
+    PID는 32768이 최대로 정해져있지만 필요에 따라 /proc/sys/kernel/pid_max 에서 바꿀 수 있다.
+    In fact, most kernel code that deals with processes works directly with struct task_sturct
+        -> 결과적으로, 현재 실행중인 task의 process descriptor를 빠르게 찾는데 유용하다.
+        the 'current' macro : 현재 실행중인 task의 process descriptor를 찾는 macro
+        - architecture에 따라 구현 방법이 상이한데 어떤 architecture는 register에 현재 실행중인 process의 
+          task_struct pointer를 저장한다. x86같이 register의 갯수가 적은 architecture는 kernel stack에서 
+          thread_info를 찾고 그 다음 task_struct를 찾는다. ( current_thread_info() function )
+
+
+Process State
+    process descriptor의 state field는 process의 현재 상태를 나타낸다.
+    TASK_RUNNING 
+        - currently running or on a runqueue waiting to run
+        - the only possible state for a process executing in user-space                                     //
+        - it can also apply to a process in kernel-space that is actively running                           //
+    TASK_INTERRUPTIBLE
+        - sleeping(blocked), waiting for some condition to exist.
+        - when condition exists, the kernel sets the process's state to TASK_RUNNING
+    TASK_UNINTERRUPTIBLE
+        - identical to TASK_INTERRUPTIBLE except that is does not wake up and becom runnable
+        - This is used in situations where the process must wait without interruption or 
+          when the event is expected to occur quite quickly.
+        - 이 상태에 있는 task는 signals에 반응하지 않기 때문에 TACK_INTERRUPTIBLE 보다 덜 쓰인다.
+    __TASK_TRACED
+        - process is being traced by another process such as a debugger, via ptrace.
+        * ptrace : process trace, 컨트롤러가 대상의 내부 상태를 조사하고 조작하게 함으로써, 
+                   한 process가 다른 process를 제어할 수 있다.
+    __TASK_STOPPED
+        - Process execution has stopped. task가 실행되고 있지 않거나 실행되기에 적합하지 않은 경우.
+        - This occurs if the task receives the SIGSTOP, SIGTSTP, SIGTTIN, or SIGTTOU signal
+          or if it receives any signal while it is being debugged
+
+Process Context
+    Normal program execution occurs in user-space. 
+    When a program executes a system call or triggers an exception, it enters kernel-space.
+        -> At this point, kernel is said tobe "executing on behalf of the process" and is in process context.
+    A process can begin executing in kernel-space only through (System call or exception hanlders)
+
+
+The Process Family Tree
+    A distinct hierarchy exists between processes in Linux, Unix.
+    All proccess are descendants of the init process(PID = 1)
+
+    Every process has exactly one parent and has zero or more children.
+    The relationship between processes is stored in the process descriptor.
+    Each task_struct has a pointer to ther parents's task_struct, and a list of children

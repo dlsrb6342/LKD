@@ -1,0 +1,28 @@
+The Linux Implementation of Threads
+    Linux implements all threads as standard processes.
+    a thread is merely a process that shares certain resources with other processes.
+    Each thread has a unique task_struct - threads just happen to share resources(address space)
+
+    To other OS : threads are an abstraction to provide a lighter, quicker execution unit
+    Linux : threads are simply a manner of sharing resources between processes
+
+
+Creating Threads
+    Threads are created the same as normal tasks, with flags corresponding to the specific resourcess to be shared.
+
+    system call clone( CLONE_VM | CLONE_FS | CLONE_FILES | CLOEN_SIGHAND, 0 );
+    - address space, filesystem resources, file descriptors, and signal handlers are shared
+    - the new task and its parent are what are popularly called threads.
+        * normal fork() : clone( SIGCHLD, 0 );
+        * vfork() : clone( CLONE_VFORK | CLONE_VM | SIGCHLD, 0 );
+
+
+Kernel Threads
+    어떤 operation을 background에서 실행하는 것이 kernel에게 이로울 때가 있다. 이것을 kernel은 kernel thread를 통해 수행한다.
+    kernel thread는 address space를 가지지 않는다는 점에서 normal process와 다르다. kernel thread의 mm pointer은 NULL이다.
+        * mm pointer : pointer that points at their address space
+    
+    kernel thread는 항상 kernel-space에서만 실행되며 user-space로 넘어가지 않는다. 하지만 normal process들과 마찬가지로
+    schedulable하고 preemptable하다.
+    kernel thread는 다른 kernel thread에 의해서만 만들어지고 system boot할 때 생성된다.
+        -> kernel은 모든 새로운 kernel thread를 만들 때에 kthreadd라는 kernel process로 forking해서 한다.

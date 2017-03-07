@@ -1,0 +1,62 @@
+Process Termination
+    process가 죽으면 kernel은 process가 가지고 있던 resource들을 다 반환시키고 
+    해당 process의 parent에게 child가 죽었음을 알린다.
+
+    보통 process destruction은 자기 자신이 정한다. system call exit()을 호출했거나,
+    명시적으로 끝날 준비가 되었거나, main subroutine에서 return되었을 때 destruction된다.
+    handle할 수 없거나 ignore할 수 없는 signal or exception을 받았을 경우, process는 
+    자신의 의지와 다르게 죽을 수도 있다.
+
+    process가 어떻게 죽든 do_exit() 함수가 이 일의 대부분을 담당한다.
+    do_exit() :
+        1. task_struct에서 flags member 중에 PF_EXITING flag를 set한다.
+        2. del_timer_sync() 호출 : kernel timer를 제거한다.
+        3. if BSD process accounting is enabled,                                                //
+            acct_update_integrals() 호출 : accounting information 작성
+        4. exit_mm() 호출 : release mm_struct. 
+            만약 이 address space를 쓰고 있는 다른 process가 없다면 kernel destorys it.
+        5. exit_sem() 호출 : IPC semaphore를 기다리는 queue에 있다면 dequeue한다.
+        6. exit_files() 호출 : file descriptor usage count를 줄인다.
+           exit_fs() 호출 : filesystem data usage count를 줄인다.
+            usage count가 0이라면(어떤 process도 사용하고 있지 않다면), it is destroyed.
+        7. exit_code member of task_struct에 저장되어있는 task's exit code를 set한다.
+        8. exit_notify() 호출 : task의 parent에 signal을 보내고, children들을 그들의 thread group에
+                                있는 다른 thread나, init process에 reparent한다.
+                                exit_state in the task_struct를 EXIT_ZOMBIE로 set한다.
+        9. schedule() 호출 : to swich to a new process. 이 process는 이제 schedulable하지 않기 때문에
+                            이 코드가 이 process의 마지막 실행 코드이다.
+                            do_exit() never returns                                             //
+
+    이렇게 하면 이제 이 task가 차지하고 있는 메모리는 자신의 (kernel stack, thread_info struct, task_sturct)뿐이다.
+    이 task는 그의 parent에게 정보 제공을 위해서만 존재한다. parent가 정보를 되찾아가거나 kernel이 uninterested하다고 
+    notify를 하면 task가 잡고있던 나머지 memory가 반환된다.
+
+
+Removing the Process Descriptor
+    cleaning up after a process and removing its process descriptor are separate.
+    process descriptor를 deallocate할 때, release_task()가 호출된다. 
+    release_task() :
+        1. call __exit_signal() -> __unhash_process() -> detach_pid()
+            : pidhash와 the task list에서 process를 없앤다.
+        2. __exit_signal()은 죽은 process가 잡고있는 남아있는 자원을 다 release하고 
+            finalize statistics and bookkeeping.                                                //
+        3. 이 task가 한 thread group의 마지막 member이고 the leader is a zombie, 
+            release_task() notifies the zombie leader's parent
+        4. put_task_struct() 호출 : process의 kernel stack, thread_info structure를 포함하는
+                                    페이지를 free하고, task_struct를 포함하는 slab cache를 deallocate한다.
+
+
+The Dilemma of the Parentless Task
+    child보다 parent가 먼저 죽을 경우, child task들을 reparent해줘야한다. 해주지 않으면 child가 terminate됐을 때,
+    zombie 상태로 영원히 system memory를 낭비하면서 남겨질 수 있다.
+    같은 thread group안에 있는 다른 process나 init process로 reparent해줘야 한다.
+    do_exit() -> exit_notify() -> forget_original_parent() -> find_new_reaper() 
+        : reparenting a child list
+    ptrace_exit_finish() : reparenting a ptraced list
+
+    child list와 ptraced list를 나눠서 가지고 있는 것은 kernel 2.6부터 생긴 특징이다. 
+    어떤 한 task가 만약 ptraced되고 있다면, 이 task는 일시적으로 debugging process에 reparent된다.
+    만약 이 task의 parent가 exit하면 이 task는 그의 다른 siblings와 함께 reparent되야 한다. 
+    이전의 kernel에서는 이렇게 되면 children을 찾기 위해 system의 모든 process에 loop를 돌아야 했다.
+    2.6 이후의 kernel에서 child list와 ptraced list를 나누면서 서로 관계가 있는 작은 list 2개의 loop만
+    돌면 되게 되었다.
