@@ -1,0 +1,56 @@
+Preemption and Context Switching
+    Context Switching :
+        runnable task를 다른 task로 바꾸는 것으로 context_switch()를 통해 handle한다.
+        context_switch() : 
+            schedule()을 통해 새로 실행할 process가 선택되었을 때 호출된다.
+            1. switch_mm()을 호출해서 새로운 process의 virtual memory로 mapping을 해준다.
+            2. switch_to()을 호출해서 processor's state를 새로운 process에 맞춰 바꿔준다.
+                (stack information, processor register, architecture-specific state)
+
+        kernel은 언제 schedule()을 호출해야 할지 알아야 한다. 그렇지 않으면 user-space program이 무한정 실행될 수 있다.
+        대신, kernel은 need_resched flag를 통해 언제 reschedule이 필요한지 알려준다. 
+        need_resched은 scheduler_tick()이나 try_to_wake_up()에 의해 set된다.
+        * scheduler_tick() : process가 preempt되어야 할 때 호출된다.
+          try_to_wake_up() : 현재 실행 중인 process보다 priority가 높은 process가 깨어났을 때 호출된다.
+        kernel은 이 flag를 확인해 set되어있다면, 새로운 process로 바꾸기 위해 schedule()을 호출한다.
+        need_resched은 kernel에게 최대한 빨리 reschedule되어야 한다고 알려주는 message이다.
+        
+        user-space로 돌아가거나, interrupt handling을 끝내고 return할 때 이 flag를 확인하고 reschedule한다.
+        need_resched는 현재 per-process variable인데, 그 이유는 process descriptor에 접근하는 것이 더 빠르기 때문이다.
+            process descriptor에 접근하는 것이 빠른 이유는 current 매크로의 속도와 이것이 cache hot에 있을 확률이 높기 때문이다.
+        need_resched flag는 2.2 이전에는 global 변수였고 2.2, 2.4에서는 task_struct 안에 int형으로 있었고 2.6 부터는 
+        thread_info 안에 있는 single bit of a special flag variable이 되었다.
+
+
+User Preemption
+    User Preemption은 user-space로 돌아가는 중에 확인한 need_resched가 set되어있을 때 발생한다. 
+    kernel이 user-space로 돌아가는 중이라면 kernel은 안전한 중지 상태인 것을 안다.
+        -> 다시 말해, 현재 task를 실행시키기 안전한 상태라면, 새로운 task를 뽑아 실행시키는 것도 안전하다는 것이다.
+    요약하자면, User preemption은 다음 상황에서 발생한다.
+        1. system call을 끝내고 user-space로 돌아갈 때
+        2. interrupt handler을 끝내고 user-space로 돌아갈 때
+
+
+Kernel Preempton
+    Linux kernel 2.6에서는 다른 Unix 계열 OS들과 다르게 kernel code를 실행하는 동안에도 preemption이 일어날 수 있다.
+        -> kernel이 reschedule하기에 safe한 상태이기만 하면 언제든 preemption이 일어날 수 있다.
+    when is it safe to reschedule?
+        kernel에 실행 중인 task가 'lock'을 hold하고 있지 않는한 그 task는 preempt할 수 있다. -> safe
+        * lock은 nonpreemptibility를 나타내는 marker로써 쓰인다.
+        kernel은 SMP-safe하기 때문에 lock을 hold하고 있지 않다면 현재 코드는 재입력될 수 있고 preempt될 수 있다.
+
+    preept_count in thread_info : 
+        kernel preemption을 돕기 위해 preemption counter를 thread_info에 넣어주었다.
+        이 값은 0으로 시작해서 lock을 얻을 때마다 1씩 증가하고, lock을 release할 때마다 1씩 감소한다. 
+        이 값이 0일 때, kernel은 preempt할 수 있다.
+        interrupt에서 kernel-space로 return할 때, need_resched와 preemt_count를 확인한다.
+        preept_count가 0이 되었을 때, unlock code는 need_resched를 확인해서 reschedule할 것인지 정한다.
+
+        kernel에 있는 task가 block되거나 직접 schedule()을 호출하는 경우, kernel preemption이 명시적으로 일어난다.
+        이러한 경우의 kernel preemption은 kernel이 safe한지 확인하는 추가적인 logic이 필요없기 때문에 무조건 실행된다.
+
+    Kernel preemption can occur :
+        1. interrupt handler을 끝내고 kernel-space로 돌아갈 때
+        2. kernel code가 lock을 모두 release해서 preempt_count가 0이 되어서 preempt가 가능해졌을 때
+        3. kernel에 있는 task가 schedule()을 호출했을 때
+        4. kernel에 있는 task가 block 되었을 때 ( schedule()의 결과때문에 )

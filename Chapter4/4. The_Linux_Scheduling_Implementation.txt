@@ -1,0 +1,129 @@
+The Linux Scheduling Implementation
+    in kernel/sched_fair.c
+    four components of CFS : Time Accounting, Process Selection, 
+                            The Scheduler Entry Point, Sleeping and Waking Up
+
+
+Time Accounting
+    The Scheduler Entity Structure
+        CFS에서는 timeslice라는 개념이 없지만, 각각의 process가 그들의 fair share만큼만 실행되게 하기 위해
+         process가 실행된 시간을 keep해야 한다.
+        CFS는 scheduler entity structure인 struct_sched_entity를 사용한다.
+        scheduler entity structure는 process descriptor(struct task_struct)안에 'se'라는 memeber로 있다.
+
+    The Virtual Runtime
+        vruntime variable(struct_sched_entity에 있음)는 runnable process의 총 갯수로 normalized(weighted)한
+         실제 실행 시간이다.
+        unit : nanasecond -> timer tick과 관련이 없다.
+        vruntime은 CFS가 ideal multitasking processor에 근접하도록 도와준다.
+        ideal multitasking processor는 모든 runnable process가 perfectly multitask되기 때문에 vruntime을 필요로
+         하지 않는다. 즉 priority가 같은 process들은 vruntime 값이 같을 것이다.(equal, fair share of the processor)
+        CFS는 vruntime 값을 process가 얼마나 실행되었고 그래서 얼마나 더 실행되어야 하는지를 결정하는데에 사용한다.
+
+        update_curr()(in kernel/sched_fair.c)이 vruntime의 값을 관리한다.
+        update_curr()은 현재 실행 중인 process를 불러와 actual runtime을 계산하고 그 값을 delta_exec에 저장하여
+         __update_curr()함수에 전달해준다. __update_curr()은 전달받은 delta_exec 값과 runnable process의 총 수를 이용하여
+         weighted actual runtime을 구해 vruntime에 더해준다.
+
+        update_curr()은 system timer에 의해 주기적으로 불러지기도 하고 process가 runnable, block, unrunnable되었을 때 호출된다.
+        update_curr()에 의해 vruntime은 주어진 process에 대해 정확한 측정값을 가지게 되고 다음에 어떤 process가 실행될지의 지표가 된다.
+
+    Process Selection
+        Perfectly multitasking processor라면 모든 runnable process에서 vruntime이 항상 일정하게 유지된다.
+        CFS에서는 process의 vruntime을 balancing하기 위해 간단한 규칙을 사용한다.
+            -> 다음에 실행될 process를 선택할 때 vruntime 값이 가장 작은 process를 선택한다.
+        CFS는 runnable process를 관리하고 vruntime이 가장 작은 process를 효율적으로 찾기 위해 red-black tree를 쓴다.
+
+    Picking the Next Task
+        vruntime을 key로 가지고 runnable process를 노도로 하는 red black tree가 있다고 가정하자.
+        이 때에 vruntime이 가장 작은 process는 left most node이다. 
+        "run the process represented by the leftmost node in the rbtree"
+        __pick_next_entity()가 이 selection을 수행한다.
+        __pick_next_entity()가 직접 tree를 탐색하는 것이 아니라 cache되어있는 rb_leftmost를 가져온다.
+        이 함수의 return 값은 CFS가 다음에 실행할 process이다.
+        만약 NULL을 return한다면 runnable process가 하나도 없다는 것이다.
+
+    Adding Processes to the Tree
+        process가 runnable해지거나 fork()에 의해 처음 만들어졌을 때, rbtree에 process가 넣어지고 leftmost node가 cache된다.
+
+        enqueue_entity() : 
+            adding process to the tree
+            update_curr()을 호출해서 지금 실행 중인 process에 대한 vruntime을 정하고 __enqueue_entity()를 호출한다.
+        __enqueue_entity() : 
+            rbtree를 traverse해서 insert할 process의 자리를 찾아 넣어준다.
+            위 과정에서 만약 insert할 process가 right node로 한번이라도 간다면 절대 leftmost node가 될 수 없기 때문에 
+             leftnode = 0 으로 해준다. leftnode가 1이라면 leftmost node로 cache해준다. rb_link_node()를 통해
+             알맞은 자리에 process를 넣어준 후, rb_insert_color()를 호출해 rbtree의 balance와 coloring을 유지해준다.
+
+    Removing Processes from the Tree
+        process가 block되거나 terminate 됐을 때 호출된다.
+
+        dequeue_entity() :
+            update_curr()을 호출해서 지금 실행 중인 process에 대한 vruntime을 정하고 __dequeue_entity()를 호출한다.
+        __dequeue_entity() :
+            rb_erase() 함수가 대부분의 일을 해주지만 만약 지우려는 process가 leftmost node라면 rb_next()를 통해 
+            leftmost node를 새로 cache해주어야 한다.
+
+    The Scheduler Entry Point
+        schedule() :
+            kernel/sched.c에 있는 함수로 process scheduling의 main entry point이다.
+            process scheduler를 부르고 어떤 process가 실행될지 결정하고 실행시킨다.
+            즉, runnable process를 가지는 scheduler class 중 priority가 가장 높은 것을 찾고 어떤 process를 실행할지 묻는다.
+            schedule() is generic with respect to scheduler classes.
+            schedule()의 가장 중요한 부분은 pick_next_task()를 호출하는 것이다.
+            pick_next_task() :
+                scheduler class들을 높은 priority부터 순서대로 돌면서 priority가 가장 높은 process를 고른다.
+                처음 부분에서 먼저 run queue에 있는 모든 process의 수와 그 중 CFS에 포함된 process 수가 같은지 확인한다.
+                    -> 이를 통해 CFS-provided process를 더 빨리 선택할 수 있게 한다.
+                for loop를 통해 priority 순으로 탐색한다. class마다 pick_next_task()를 구현해놔서 이 함수를 호출했을 때,
+                runnable task가 있다면 그 process를 가리키는 pointer를, 없다면 NULL을 return하게 한다.
+                CFS는 pick_next_task()를 pick_next_entity()를 통해 구현해놨다. (line 37)
+
+    Sleeping and Waking Up
+        block(sleeping)이 되는 이유는 여러 가지지만 kernel이 하는 일은 같다.
+            1. task가 sleeping이라고 표시해준다.
+            2. wait queue에 task를 넣어준다. 
+            3. runnable process가 있는 rb tree에서 제거해준다.
+            4. schedule()을 호출해서 다음에 새로 실행될 process를 선택한다.
+        
+        waking back up은 반대의 과정이다.
+            1. task를 runnable이라고 표시해준다.
+            2. wait queue에서 task를 제거해준다.
+            3. runnable process가 있는 rb tree에 넣어준다.
+
+        sleeping에는 TASK_UNINTERRUPTIBLE, TASK_INTERRUPTIBLE 2가지 state가 있다. 
+        TASK_UNINTERRUPTIBLE은 다른 signal들을 무시하지만 TASK_INTERRUPTIBLE은 signal이 오면 반응을 하여
+         중간에 wake up될 수 있다. 둘다 wait queue에 있고 event가 일어나길 기다리고 runnalbe하지 않다는 점은 같다.
+
+        Waiting Queues
+            wait queue는 어떤 event를 기다리는 process의 list이다. wait queues는 커널에서 wake_queue_head_t로 표현된다.
+            wait queues are created statically via DECLARE_WAITQUEUE().
+                            created dynamically via init)waitqueue_head().
+
+            그냥 간단하게 sleeping에 들어가는 것은 race condition에 빠질 수 있다. 예를 들어, process가 sleep에 들어가기 전에
+            condition이 true가 되어서 process가 무기한으로 sleeping할 수도 있다. 따라서 조금 더 복잡한 방법이 필요하다.
+
+            process가 wait queue에 들어가는 과정 :
+                1. DEFINE_WAIT()을 통해 wait queue에 들어갈 정보를 입력한다.
+                2. add_wait_queue()를 통해 wait queue에 자기 자신을 넣는다. 
+                3. prepare_to_wait()을 호출해서 process의 state를 TASK_INTERRUPTIBLE이나 TASK_UNINTERRUPTIBLE로
+                    바꿔준다. prepare_to_wait() 함수는 while loop를 한번 돌고 나서 다시 호출될 경우, task를 다시 wait queue에
+                    넣어주는 일도 한다.
+                4. 만약 TASK_INTERRUPTIBLE이라면 signal에 의해 process가 깨어날 수 있는데 이런 것을 spurious wake up이라고 한다.
+                    이러한 경우도 handling해줘야 한다.
+                5. task가 깨어났을 때, condition이 true인지 다시 확인해주고 true라면 loop를 빠져나오고
+                    아닐 경우, schedule()을 다시 호출하고 다시 loop를 반복한다.
+                6. condition이 true라면, TASK_RUNNING으로 바꿔주고 finish_wait()을 통해 wait queue에서 자기 자신을 없애준다.
+
+            위의 과정으로 진행하면, process가 sleep하기 전 condition이 true가 된다면 loop를 바로 나오게 된다.
+
+        Waking Up
+            Waking은 wake_up()을 통해 handle되는데 wake_up()은 주어진 waiting queue에 있는 모든 task를 깨운다.
+            wake_up()은 try_to_wake_up()을 부르는데 이 함수는 task의 상태를 TASK_RUNNING으로 set해주고 equeue_task()를 호출해
+             red-black tree에 task를 넣어주고 만약 현재 실행 중인 task보다 priority가 높은 경우, need_resched를 set한다.
+            이벤트를 발생시키는 코드는 보통 wake_up()도 호출한다.
+
+            spurious wake-up의 경우는 따로 생각해줘야 한다. spurious wake-up 때문에 process가 깨어났다고 하더라도 
+             기다리던 event가 발생했다는 것을 의미하지 않는다.
+                -> sleep은 loop 안에서 task가 기다리던 condition이 정말 발생한 것인지 확실히 handle해줘야 한다.
+                

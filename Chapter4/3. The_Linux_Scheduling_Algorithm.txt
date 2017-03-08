@@ -18,8 +18,8 @@ Process Scheduling in Unix Systems
             ex) nice value 19, 20 -> timeslice 95, 100 -> almost equal
                 nice value 1,2 -> timeslice 5, 10 -> double
         3. nice value에 absoulte timeslice를 할당해줄 때, timer tick으로 인한 한계가 생긴다.
-            연속된 2개의 nice value 사이의 timeslice 차이가 최대 10초 최소 1초이고,                      // Chapter 11
-            minimum timeslice도 최대 10초 최소 1초이고,
+            연속된 2개의 nice value 사이의 timeslice 차이가 최대 10ms 최소 1ms이고,                      // Chapter 11
+            minimum timeslice도 최대 10ms 최소 1ms이고,
             timeslices은 different timer ticks을 가지고 변해야한다.
         4. interactive task에 대해 이 task가 wake up 했을 때, priority-based scheduler에서 이 상황을 handling하는 문제이다.
             interactive task는 wake up 했을 때 timeslice를 다 썼다 하여도 즉시 실행시키려 할 것이다. 이것은 interactive
@@ -33,4 +33,40 @@ Process Scheduling in Unix Systems
     CFS가 택한 접근법은 timeslice allotment에 대한 근본적인 재고이다. 
         -> timeslice에서 완전히 벗어나서 proportion of the processor를 할당하자.
         -> constant한 fairness but a variable switching rate.
- 
+
+
+Fair Scheduling
+    CFS는 ideal하고 완벽한 multitaking processor가 있는 시스템에서 process scheduling을 한다고 생각한다.
+    이러한 시스템에서 n개의 process에게 1/n의 processor's time을 할당하고 infinitely small duration으로 scheduling을 한다면
+     어떤 period를 잡는다해도 모든 n개의 process가 똑같은 시간동안 실행되었을 것이다.
+    perfect multitasking : perfectly multitasking processor에서 5ms가 필요한 2개의 process가 simultaneously하게 
+                            10ms동안 50%의 power로 실행되는 것.
+        -> 위의 예시는 비현실적이다. 하나의 processor에서 동시에 여러 process를 실행시키는 것은 불가능하고 process를 infinitely small
+            duration으로 실행하면 process switching overhead가 커져 비효휼적이다.
+    CFS는 이 overhead와 performance를 고려하면서 scheduling한다. CFS는 각각의 process를 some amount of time동안 실행하고
+     가장 예전에 실행되었던 process를 다음 실행할 process로 선택한다. CFS는 process가 실행되어야 하는 시간을 runnable process의 
+     총 갯수의 함수로 계산한다.
+    CFS는 nice value를 process가 받게 될 proportion of processor의 weight로 쓴다.
+
+    실제 timeslice를 계산하기 위해, CFS는 targeted latency를 정한다.
+    targeted latency : 모든 runnable process들이 프로세서를 사용할 수 있는 최대 시간.
+                        weight에 따라 process에게 실제 timeslice로 나뉘어진다.
+
+    만약 process가 무한대로 많아지면, process가 할당받는 timeslice를 0에 수렴하게 된다. 이렇게 되면 switching cost를 수용할 수 없게
+     된다. 따라서 CFS는 minimum granularity라는 각각의 process가 할당받는 timeslice의 최소값을 정해주었다.( default : 1 ms )
+        -> process의 수가 infinite하게 커져도, 각 process당 1ms동안은 실행될 것이다.
+        -> CFS는 process의 갯수가 커져서 계산된 timeslice가 minimum granularity보다 작아지면 not perfectly fair해진다.
+            비록 fairness를 개선시키기 위한 fair queueing에 수정이 있지만, CFS는 이것을 trade-off로 설계되었다.
+            소수의 runnable process가 존재하는 보통의 경우에는 CFS는 perfectly fair하다.
+
+    ex) nice value 5 process, nice value 0 process, 20ms target latency.
+        -> the weigths work out to about a 1/3 penalty for the nice-5 process.
+        -> nice-5 process receive 5 ms, nice-0 process receive 15ms.
+        nice value 15 process, nice value 10 process, 20ms target latency.
+        -> the weigths work out to about a 1/3 penalty for the nice-15 process.
+        -> nice-15 process receive 5 ms, nice-10 process receive 15ms.
+
+    absolute nice values는 더이상 scheduling decision에 영향을 주지 않는다. 이제 nice value의 상대적인 값이 할당받을 
+     proportion of processor time에 영향을 준다.
+    proportion of processor time는 다른 process와의 nice value 상대적 차이만으로 결정된다.
+    CFS는 각각의 process에게 processor's time을 fair하게 나눠주기 때문에 fair scheduler라고 불린다.
