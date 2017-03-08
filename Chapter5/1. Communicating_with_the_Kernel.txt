@@ -1,0 +1,11 @@
+Communicating with the Kernel
+    system call은 user-space에 있는 process와 hardware간의 layer이다.
+    이 layer의 주 목적은 3가지가 있다.
+        1. user-space process에게 abstracted hardware interface를 제공한다.
+        2. system security와 stability를 제공한다.
+            kernel이 system resources와 user-space 사이에 중재자 역할을 하면서
+            permission, user 등에 따라 접근을 제어할 수 있다.
+        3. process 별로 virtualized system을 제공한다.
+
+    system call은 kernel로 들어갈 수 있는 유일한 legal entry point이다. 
+    사실 다른 interface들(device files or /proc) 또한 system call로 access하게 된다.
