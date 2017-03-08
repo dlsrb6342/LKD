@@ -1,0 +1,20 @@
+APIs, POSIX, and the C Library
+    application은 직접 system call을 호출하는 것이 아니라 API(Application Programming Interface)를 
+    이용하여 programming된다. 
+    API는 applications에서 사용할 programming interface들로 이루어져 있는데 이러한 interface들은
+    0개, 1개 혹은 여러 개의 system call을 통해 구현되어있다. 
+    시스템에 따라 API의 구현이 크게 다르지만 다양한 시스템에 같은 API가 존재하고 application에게 같은 interface를 제공한다.
+
+    POSIX :
+        여러 Unix based system에 똑같이 사용될 수 있게 표준을 모아둔 것이다.
+        earlier Unix system이 제공하던 interface들과 비슷하게 만들어졌다.
+
+    Linux에서의 system call interface는 부분적으로 C library를 통해 제공된다.
+    C library는 standard C library와 system call interface를 포함하는 Unix system의 main API를 구현한다.
+    C library는 모든 C program에 쓰이고 C의 특성상 어떤 다른 언어로도 쉽게 가져다 쓸 수 있다.
+    게다가 C library는 POSIX API의 상당수를 제공한다.
+
+    programmer는 API만을 고려하고 kernel은 system call만을 고려한다.
+    "Provide mechanism, not policy"
+        -> Unix system call은 abstract sense에서 특정 function을 제공하기 위해 존재한다.
+            그 function이 어디서 어떻게 쓰이는지는 kernel이 신경쓰지 않는다.

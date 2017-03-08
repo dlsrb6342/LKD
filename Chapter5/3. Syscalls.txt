@@ -1,0 +1,36 @@
+Syscalls
+    syscall(system call)은 보통 C library에 정의되어있는 함수를 통해 접근된다.
+    C library는 syscall이 error를 return했을 때, global variable인 errno에 특정 error를 write한다.
+    이 variable은 perror()와 같은 library function을 통해 human-readable error로 해석된다.
+
+    syscall은 정의된 행동을 가져야한다.
+    system call이 어떻게 정의되는지 보자.
+        asmlinkage long sys_getpid(void)
+        1. asmlinkage modifier를 보자. 이 modifier는 compiler에게 이 함수의 argument들은 다 stack에 있다는 것을
+            직접적으로 알려주는 것이다. 이 modifier는 모든 system calld에서 쓰인다. 
+        2. return type long. 32-bit와 64-bit system의 호환성을 위해 system call은 user-space에서는 int를 return하고
+            kernel space에서는 long을 return한다.
+        3. naming convention. ex) System call bar()가 있다면 이 함수는 kernel에서는 sys_bar()라는 함수로 구현되어있다.
+
+    System Call Numbers
+        각각의 system call마다 고유한 system call number를 할당받는다.
+        user-space process가 system call을 실행할 때에는 system call의 이름으로 부르지 않고 system call number를 통해
+        호출한다. syscall number로 어떤 syscall이 실행되었는지 알 수 있다.
+
+        한번 할당이 되면 바꿀 수 없고 바꾸면 compiled application이 망가진다.
+        syscall이 remove된다하더라도 그 syscall number를 재사용하지 않는다. 재사용하게 되면 이미 compile된 code는 의도하지 않은
+        다른 syscall을 호출하게 될 수 있다. Linux는 "not implemented" system call, sys_ni_syscall()을 제공한다.
+        sys_ni_syscall() :
+            무조건 return -ENOSYS.
+            syscall이 remove되었다거나 사용할 수 없게 되는 희귀한 경우에 그 구멍을 막는데에 쓰인다.
+
+        sys_call_table :
+            등록된 모든 system call을 list로 가지고 있다.
+
+    System Call Performance
+        Linux의 system call은 다른 OS에 비해 빠르다. Linux의 빠른 context switch가 system call을 어느정도 빠르게 한다.
+        system call handler와 각각의 system call 자체가 간단해서 system call을 빠르게 한다.
+
+
+
+

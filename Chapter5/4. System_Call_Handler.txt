@@ -1,0 +1,15 @@
+System Call Handler
+    user-space application은 직접 kernel code를 실행시킬 수 없다.
+    대신 어떻게 해서든 kernel에게 그들이 system call을 실행하고 kernel mode로 바뀌길 원한다고 알려야 한다.
+
+    kernel에 알리는 mechanism은 software interrupt이다. 
+    -> exception을 발생시킨다. -> system이 process를 kernel mode로 바꾸고 exception handler를 실행시킨다.
+                                여기서의 exception handler는 system call handler이다.
+    x86에서 software interrupt는 int $0x80 instruction을 통해 발생되는 interrupt number 128이다.
+    system call handler는 system_call()이라는 함수이다.
+
+    최근에 x86 processor에 sysenter 라는 feature가 추가되었다. 이 feature는 int $0x80보다 faster하고 
+    more specialized하게 kernel에 trapping하는 방법이다.
+
+    Denoting the Correct System Call
+        
