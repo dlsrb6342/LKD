@@ -1,0 +1,54 @@
+System Call Implement
+    Linux에서 system call을 추가할 때, system call handler의 작업에 대해 신경 쓸 필요가 없다.
+    따라서 Linux에서 system call을 추가하는 일은 상대적으로 쉽다. system call을 desing하고 implement하는 것만
+    힘들 뿐, kernel에 등록하는 일은 간단하다.
+
+    Implementing System Calls
+        정확히 한가지 목적만을 가지도록 정의해야 한다.
+        가장 적은 argument로 깔끔하고 간단한 interface를 가져야 한다.
+        system call의 semantic, behavior은 application들이 이들에게 의존하게 될 것이기 때문에 
+         한번 정의되고 나서 바껴서는 안된다. 그러므로 매우 중요하다. 
+        또 이 함수가 시간이 지나 어떻게 바뀔지도 생각해봐야 한다.
+            1. 새로운 기능을 추가할 수 있는가
+            2. 하위 호환성을 지키면서 쉽게 bug를 잡을 수 있는가
+            3. 많은 system call이 flag를 통해 adress 호환성 문제를 해결한다.
+                여러 기능을 제공하는 것에 flag를 쓰는 것이 아니라 새로운 기능을 추가하는 곳에 써야 한다.
+        지금 정의하는 system call이 나중에도 똑같이 쓰일거라 생각하지 말고 구현해야 한다. 쓸데 없이 제한하지 말고 최대한 일반적이게
+        design해야 한다.
+        Portablity 또한 고려되어야 한다. architecture의 word size나 endianness를 가정하지 말아야 한다.
+
+        system call을 쓸 때, 지금뿐만 아니라 미래에서의 portablity와 robustness를 고려해야 한다.
+
+    Verifying the Parameters
+        system call은 그들의 모든 parameter들에 대해 valid하고 legal한지 확인해야 한다. 그렇지 않으면 system의 security와
+         stability가 흔들릴 수 있다.
+        process가 넘겨주는 pointer를 체크하는 것도 가장 중요한 일 중 하나이다. Process가 이상한 pointer를 넘겨줘서 접근 권한이 없는
+        부분의 data를 copy하라고 kernel을 속일 수도 있다. 따라서 kernel은 pointer를 따라 user-space에 접근하기 전에 다음 3가지를 
+        확인해야한다.
+            1. pointer는 user-space의 memory를 가리켜야 한다. Process는 자기 자신 대신에 kernel이 kernel-space에 있는
+                data를 읽게 속이면 안된다.
+            2. pointer는 해당 process의 address space를 가리켜야 한다. process는 kernel이 다른 process의 data를 읽게 속이면 안된다.
+            3. if reading, the memory is marked readable. if writing, the memory is marked writable.
+                if executing, the memory is marked executable. procss는 access 권한에 맞게 접근해야 한다.
+
+        kernel은 위의 조건 확인과 user-space로부터나 user-space로의 바람직한 copy에 대한 2가지 방법을 제공한다.
+
+        copy
+            copy_to_user() :
+                3 arguments( destination memory address in process's address space,
+                             source pointer in kernel space,
+                             size in bytes )
+            copy_from_user() : 
+                3 arguments( destination in kernel space, 
+                             source in process's address space,
+                             size in bytes )
+
+        valid permission
+            in older version of Linux, use suser()
+            suser() :
+                check whether a user was root
+                this is removed
+            capable() :
+                call with a valid capabilities flag
+                return nonzero if caller has the specified capability
+                return zero otherwise.

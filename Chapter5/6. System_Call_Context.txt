@@ -1,0 +1,43 @@
+System Call Context
+    process가 system call을 실행하는 동안 kernel은 process context 상태가 된다.
+    current pointer는 syscall을 호출한 process를 가리킨다.
+
+    kernel이 process context에 있을 때, kernel은 sleeping 상태가 될 수 있고 preempt될 수 있다.
+
+    the capability to sleep means that system calls can make use of the majority 
+     of the kernel's functionality.                                                             //
+
+    process context 상태에서 preemptible하다는 것은 current task가 다른 task에 의해 preemption될 수 있다는 것이다.
+    이렇게 되면 preemption시킨 task가 다시 똑같은 system call을 부를 수 있기 때문에 systme call은 reentrant해야 한다.
+
+    system call이 return하면 system_call() 함수가 이어서 진행되고 결국엔 user-space로 바뀌고 user process를 실행한다.
+
+
+Final Steps in Binding a System Call
+    1. system call table의 끝에 넣어준다.
+    2. syscall number를 정해준다.
+    3. kernel image에 새로 정의한 syscall을 compile해준다.
+
+
+Why Not to Implement a System Call
+    Let's look at the pros, cons, and alternatives
+
+    pros :
+        1. implement하기 쉽고 사용하기 쉽다.
+        2. Linux에서는 system call의 performance가 좋다.
+
+    cons : 
+        1. 공식적으로 할당된 syscall number가 필요하다.
+        2. stable한 Linux에 system call을 추가하면 user-space application을 유지하면서 interface를 바꿀 수 없다.
+        3. architecture별로 system call을 등록해주고 지원해야한다.
+        4. script에서 쓰기 쉽지 않고 filesystem에서 직접적으로 접근할 수 없다.
+        5. 할당된 syscall number가 필요하기 때문에, master kernel tree 바깥에서 관리하고 사용하기 어렵다.
+        6. 간단한 정보 교환에서 system call을 쓰는 것은 지나치다.
+
+    alternatives :
+        1. device node를 구현하고 그것을 read(), write()하는 것도 구현해라. 특정 setting을 관리하거나 특정 정보를 가져올 때는
+            ioctl()을 사용해라.
+        2. semaphore같은 특정 interface는 file descriptor로써 표현하고 관리해라.
+        3. 정보는 file로써 sysfs의 적당한 위치에 추가해라.
+            * sysfs는 리눅스 커널이 제공하는 가상 파일 시스템의 하나로서, 가상 파일을 통해 다양한 커널 하위 시스템, 하드웨어 장치, 
+                또 커널 장치 모델에서 사용자 공간에 이르는 관련 장치 드라이버에 대한 정보를 내보낸다.

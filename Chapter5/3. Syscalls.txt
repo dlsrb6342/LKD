@@ -30,7 +30,3 @@ Syscalls
     System Call Performance
         Linux의 system call은 다른 OS에 비해 빠르다. Linux의 빠른 context switch가 system call을 어느정도 빠르게 한다.
         system call handler와 각각의 system call 자체가 간단해서 system call을 빠르게 한다.
-
-
-
-

@@ -12,4 +12,21 @@ System Call Handler
     more specialized하게 kernel에 trapping하는 방법이다.
 
     Denoting the Correct System Call
-        
+        모든 process가 같은 방법으로 kernel에 들어가고 system call은 많은 종류가 있기 때문에, 그저 그냥 kernel-space로
+         들어가는 것은 충분하지 않다.
+        그러므로 system call number가 kernel에게 전달되어야 한다.
+        x86에서는 eax register에 system call number를 저장해서 kernel에게 전달한다.
+        system call handler가 eax register를 읽어온다.
+
+        system_call() 은 주어진 system call number와 NR_syscalls를 비교하여 NR_syscalls보다 크거나 같으면
+         -ENOSYS를 return하고 작으면 system call을 실행한다.
+            -> call *sys_call_table(, %rax, 8)
+            * %rax의 lower 32bit가 %eax이다. 64bit machine의 예시이기 때문에 8(->8byte)
+               32bit machine에서는 8을 4로 바꿔주면 된다.
+
+    Parameter Passing
+        system call이 parameter를 필요로 할 때도 있다. 이 때에는 system call number를 넘겨줬던 것처럼
+         똑같이 register에 저장해서 넘겨주게 된다.
+        32bit machine에서는 registger ebx, ecx, edx, esi, edi 5개의 registger에 argument를 저장한다.
+        만약 parmeter의 갯수가 5개가 넘는다면 모든 parameter들을 가지고 있는 user-space를 가리키는 pointer를
+         하나의 register에 담아 보낸다.
