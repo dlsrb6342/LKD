@@ -1,0 +1,13 @@
+Top Halves Versus Bottom Halves
+    interrupt handler의 2가지 목표
+        1. execute quickly
+        2. perform a large amount of work
+        -> 서로 conflict한 관계에 있다.
+    그래서 interrupt를 처리하는 것을 2가지 부분으로 나누었다.
+        1. top half 
+            run immediately upon receipt of the interrupt
+            perform only the time-critical work
+        2. bottom half
+            the work that can be performed later
+            run in the future, at a more convenient time, with all interrupts enabled
+    Linux에서는 bottom half들을 구현하는 여러 mechanism들이 있다. 

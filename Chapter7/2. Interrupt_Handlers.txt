@@ -1,0 +1,18 @@
+Interrupt Handlers
+    특정 interrupt에 대해 반응하는 function을 interrupt handler, interrupt service routine(ISR)이라고 한다.
+    각각의 device가 생성하는 interrupt마다 따로 관련된 interrupt handler가 있다.
+    interrupt handler는 해당 device의 driver에 포함되어있다. 
+    * device driver : device를 관리하는 kernel code
+
+    Linux에서 interrupt handler는 C function으로 되어있다. 
+    다른 kernel function들과 interrupt handler가 다른 점은 kernel이 interrupt에 대한 반응으로 실행시킨다는 점과
+     special context(interrupt context)에서 실행된다는 점이다. interrrupt context는 block될 수 없기 때문에 
+     atomic context라고도 불린다.
+
+    interrupt가 언제든 발생할 수 있기 때문에 interrupt handler도 언제든 실행될 수 있어야 한다. 
+    interrupt handler는 빠르게 실행시키고 다시 interrupted code로 최대한 빨리 돌아가야 한다.
+    OS가 hardware에게 delay없이 interrupt를 처리해주는 것이 중요하듯이, 다른 system들에게 interrupt handler가
+     최대한 빨리 끝나야 하는 것도 중요하다.
+
+    interrupt handler는 최소 hardware에게 interrupt에 대한 답을 주는 일을 한다. 하지만 network device의 interrupt
+    handler처럼 많은 일을 할 수도 있다.

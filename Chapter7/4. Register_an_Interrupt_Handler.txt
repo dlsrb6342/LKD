@@ -1,0 +1,63 @@
+Register an Interrupt Handler
+    device는 하나의 driver를 갖고 만약 그 device가 interrupt를 사용한다면 interrupt handler를 등록해야 한다.
+    driver는 interrupt handler를 등록하고 request_irq() 함수를 이용해 interrupt handling을 할 수 있다.
+
+    int request_irq(unsigned int irq, 
+                irq_handler_t handler, 
+                unsigned long flags, 
+                const char *name, 
+                void *dev)
+        unsigned int inq :
+            the interrupt number
+  
+        irq_handler_t handler :
+            a function pointer to the actual interrupt handler
+            whenever OS receives the interrupt, invoke
+    
+        unsigned long flags :
+            request_irq()의 3번째 parameter인 flags, 0이나 bit mask 값이다.
+
+            IRQF_DISABLED :
+                disable all interrupt when executing this interrupt handler.
+                대부분의 interrupt handler가 unset한다.
+                빠르게 실행해야하는 performance-sensitive한 interrupt들이 설정한다.
+            IRQF_SAMPLE_RANDOM :
+                이 flag가 설정된 interrupt는 kernel entropy pool에 기여를 해야 한다. timing of interrupts은
+                entropy source로써 pool에 넘겨진다.
+                kernel entropy pool은 다양한 random event로부터 정말 random한 숫자들을 제공한다.
+                주기적으로 발생하거나 외부로부터 공격을 받을 수 있는 interrupt에는 설정해서는 안된다.
+                다른 대부분의 interrupt들은 좋은 entropy source가 된다.
+            IRQF_TIMER :
+                system timer interrupt를 관리하는 interrupt handler일 때 지정한다.
+            IRQF_SHARED :
+                하나의 interrupt에 대해 여러 interrupt handler가 있을 때 지정한다.
+                같이 등록된 interrupt handler 모두 IRQF_SHARED를 지정해줘야 한다.
+
+        const char *name :
+            ASCII text representation of the device.
+
+        void *dev :
+            this parameter is used for shared interrupt lines.
+            interrupt handler가 끝났을 때 dev가 unique cookie를 줘서 해당 interrupt handler만 
+            interrupt line에서 없앨 수 있게 해준다. 만약 이 parameter를 주지 않으면 kernel은 어떤 handler가 
+            끝났는지 알 수 없게 된다. 
+            shared interrupt line이 아니라면 NULL 값을 넘겨주면 된다. 하지만 shared라면 무조건 unique cookie를 
+            넘겨줘야 한다.
+            이 pointer는 interrupt handler가 실행되었을 때 interrupt handler에게도 넘겨진다.
+            보통 driver's device structure를 넘겨준다. 이 pointer는 unique하고 handler에게 유용할 수 있다.
+
+        request_irq()는 0을 return한다. return 값이 0이 아닐 때는 interrupt handler가 등록되어 있지 않을 때의 
+        error를 의미한다. -EBUSY는 interrupt line이 이미 사용 중이라는 error이다.
+
+        request_irq()는 sleep할 수 있다. 따라서 interrupt context에서나 code가 block될 수 없는 상황에서는 불릴 수 없다.
+        device를 완전히 initialize하기 전에 interrupt handler가 먼저 실행되는 것을 막기 위해 적절한 순서로 hardware를
+         initialize하고 interrupt handler를 등록하는 것이 중요하다. 
+
+    Freeing an Interrupt Handler
+        driver를 unload할 때, interrupt handler를 unregister하고 interrupt line을 disable해줘야 한다.
+
+        void free_irq(unsigned int irq, void *dev) :
+            shared interrupt line이 아니라면 이 함수가 handler를 없애주고 interrupt line을 disable한다.
+            shared라면 dev에 해당하는 interrupt handler를 삭제해주고 interrupt line은 마지막 handler가 삭제되었을때만
+            disable된다. 
+            A call to free_irq() must be made from process context                                  //

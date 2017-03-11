@@ -1,0 +1,27 @@
+Interrupts
+    OS의 주된 역할 중 하나는 hardware를 관리하는 일이다. 그러나 hardware의 경우, processor보다 낮은 속도를 가지기 때문에
+    hardware가 주어진 일을 다 할 때까지 processor는 다른 일을 할 수 있어야 한다.
+    
+    그 방법 중 하나로 polling이 있는데 polling은 hardware가 주어진을 다 했는지 계속 주기적으로 확인하는 방법이다. 
+    그러나 이 방법은 hardware가 일을 다 하지 않았을 때도 확인해야 하는 overhead가 발생한다.
+    더 좋은 방법으로 Interrupt라는 것이 있다. interrupt는 hardware가 자신의 일을 다 끝냈을 경우, kernel에게 
+    signal을 줘서 알리는 mechanism이다. 
+
+    processor는 interrupt를 받고 OS에게 새로운 data에 대한 반응을 할 수 있게 signal을 준다.
+    interrupt를 processor clock에 대해 비동기적으로 발생할 수 있기 때문에 kernel은 언제든 interrupt에 반응할 수 있어야 한다.
+
+    interrupt는 hardware device가 발생시키는 물리적인 전기적 신호로 interrupt controller의 input pin에 들어간다.
+    interrupt controller는 다양한 interrupt를 processor를 향하는 하나의 line으로 보낸다. 
+    interrupt controller가 보낸 signal을 받은 processor는 하던 일을 멈추고 interrupt handling을 시작한다.
+    processor는 이제 OS에게 interrupt가 생겼다고 전하고, OS는 적절하게 interrupt를 handling한다.
+
+    각각의 interrupt마다 unique한 numeric value를 줘서 각각의 device마다 발생시키는 interrupt가 구분되어진다.
+        -> IRQ(Interrupt Request) line이라고 불린다.
+
+    * Exceptions
+        Exception은 processor가 어떤 한 instruction을 실행하는 동안 programming error를 만났거나 kernel이 관리해야 하는 
+        비정상적인 상태가 될 때 발생하는 것이다. interrupt와 다르게 processor clock에 대해 동기적으로 발생하기 때문에 
+        synchronous interrupt라고 불리기도 한다. 
+        많은 processor architecture들이 exception을 interrupt와 비슷한 방식으로 다루기 때문에 kernel infrastructure도
+        비슷하다. 
+        * system call도 software interrupt의 한 종류로 exception이다.
