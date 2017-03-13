@@ -23,4 +23,73 @@ Disabling and Enabling Interrupts
     local_irq_enable();         # enable interrupt
 
     위 2개의 함수 모두 보통 single assembly operation으로 구현된다.(architecture-dependent)
+    local_irq_disable() is cli instruction
+    local_irq_enable() is sti instruction
+    cli, sti are the assembly calls to clear and set the allow interrupts flag
+
+    이미 interrupts가 diable되어있는데 local_irq_disable()을 부르는건 위험하다.
+    또 local_irq_enable()은 무조건 interrupt를 enable시킨다.
     
+    위의 방법 대신, interrupts의 이전 상태를 다시 되돌리는 mechanism이 필요하다.
+    * 만약 어떤 함수를 부르는 서로 다른 함수 2개(foo1, foo2)가 있는데, foo1은 interrupt enable 상태이고
+        foo2는 interrupt disable 상태라면 kernel code를 짜기 복잡해진다.
+    따라서 interrupt system을 disable하기 전에 그 상태를 저장해두는 것이 훨씬 안전하다.
+    다시 enable시킬 때는, 저장된 상태를 다시 되돌리기만 하면 된다.
+
+    unsigned long flags;
+    local_irq_save(flags);      # interrupts are now disable
+    local_irq_restore(flags);   # interrupts are restored to their previous state
+
+    위 방법들이 macro로써 구현이 되어있다는 것을 보면 flags parameter는 passed by value처럼 보인다.
+    이 parameter는 instrrupt system의 상태를 포함하는 architecture-specific data로 되어있다.
+    flags는 다른 function으로 전달될 수 없다.( it must remain on the same stack frame )
+        -> 따라서 call to save and call to restore interrupts는 무조건 하나의 function에서 일어나야 한다.
+    위 function들은 process context나 interrupt로부터 호출될 수 있다.
+
+
+Disabling a Specific Interrupt Line
+    disable only a specific interrupt line for the entire system.
+        -> This is called masking out an interrupt line
+    four interfaces for this task.
+
+    void disable_irq(unsigned int irq);    void disable_irq_nosync(unsigned int irq);
+        -> disable given interrupt line in the interrupt controller
+            disable_irq()는 현재 진행중인 handler가 끝나기 전까지 return하지 않는다.
+            그러므로 이 함수를 통해 더이상 새로운 interrupt가 오지 않고, 현재 진행중인 handler도 없다는 것을 확실히 할 수 있다.
+            disable_irq_nosync()는 현재 진행중인 handler가 끝나길 기다리지 않는다.
+
+    void enable_irq(unsigned int irq);
+        -> enable given interrupt line in the interrupt controller
+
+    void synchronize_irq(unsigned int irq);
+        -> 특정 handler가 끝나길 기다리는 함수이다. 
+
+    disable_irq()나 disable_irq_nosync()를 호출하면 그에 상응하는 enable_irq()를 호출해줘야 한다.
+    만약 disable_irq()를 2번 call했다면, enable_irq() 또한 똑같이 2번 call해줘야 한다. enable_irq()를 2번 호출해야지만
+     interrput line이 enable된다.
+
+    이 3가지 함수는 interrupt나 process context에서 불릴 수 있고 sleep하지 않는다.
+    interrupt context에서 호출할때는 주의해야 한다. 지금 handling하고 있는 interrupt line에 대해서 enable하지 않도록 
+     해야 한다. 
+
+    interrupt line을 disable하는 것은 이 line에 연결된 모든 device로 향하는 interrupt를 disable하는 것이다.
+    따라서, 새로운 device에 대한 driver들은 위의 interface를 사용하지 않으려는 경향이 있다.
+        * PCI device들은 interrupt sharing을 지원하기 때문에 위 interface를 절대 사용하지 않는다.
+    그러므로, 위의 interface들은 보통 오래된 driver들에서 발견된다.
+
+
+Status of the Interrupt System
+    irqs_disabled()
+        -> local processor에서 interrupt system이 disable되어있다면 nonzero를 return하고
+            아니면 zero를 return한다.
+
+    interface to check the kernel's current context :
+        in_interrupt();
+            -> 더 유용하다. kernel이 interrupt handling 중이라면 nonzero를 return한다.
+                interrupt handler나 bottom half handler를 실행 중일때도 해당한다.
+        in_irq():
+            -> interrupt handler를 실행 중일때만 nonzero를 return한다.
+
+        보통 kernel이 지금 process context에 있는지 확인하고 싶어 사용한다. 그 이유는 sleep과 같이
+         process context에서만 실행할 수 있는 일들을 하고 싶기 때문이다.
+        in_interrupt()가 zero를 return한다면, kernel은 process context에 있는 것이다.

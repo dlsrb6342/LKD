@@ -7,7 +7,7 @@ Register an Interrupt Handler
                 unsigned long flags, 
                 const char *name, 
                 void *dev)
-        unsigned int inq :
+        unsigned int irq :
             the interrupt number
   
         irq_handler_t handler :

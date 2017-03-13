@@ -63,14 +63,14 @@ Process State
 Process Context
     Normal program execution occurs in user-space. 
     When a program executes a system call or triggers an exception, it enters kernel-space.
-        -> At this point, kernel is said tobe "executing on behalf of the process" and is in process context.
-    A process can begin executing in kernel-space only through (System call or exception hanlders)
+        -> At this point, kernel is said to be "executing on behalf of the process" and is in process context.
+    A process can begin executing in kernel-space only through (System call or exception handlers)
 
 
 The Process Family Tree
     A distinct hierarchy exists between processes in Linux, Unix.
-    All proccess are descendants of the init process(PID = 1)
+    All processes are descendants of the init process(PID = 1)
 
     Every process has exactly one parent and has zero or more children.
     The relationship between processes is stored in the process descriptor.
-    Each task_struct has a pointer to ther parents's task_struct, and a list of children
+    Each task_struct has a pointer to their parents' task_struct, and a list of children

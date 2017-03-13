@@ -30,4 +30,4 @@ Real-Time Scheduling Policies
     Real-time priority range : 0 ~ (MAX_RT_PRIO - 1) (default MAX_RT_PRIO : 100)
     이 priority space는 SCHED_NORMAL task의 nice value와 함께 쓰인다.
         -> nice value range : MAX_RT_PRIO ~ (MAX_RT_PRIO + 40)
-        -> -20 ~ 19 maps directly onto the priority space fromm 100 to 139
+        -> -20 ~ 19 maps directly onto the priority space from 100 to 139

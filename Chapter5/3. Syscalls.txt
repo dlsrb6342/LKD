@@ -7,7 +7,7 @@ Syscalls
     system call이 어떻게 정의되는지 보자.
         asmlinkage long sys_getpid(void)
         1. asmlinkage modifier를 보자. 이 modifier는 compiler에게 이 함수의 argument들은 다 stack에 있다는 것을
-            직접적으로 알려주는 것이다. 이 modifier는 모든 system calld에서 쓰인다. 
+            직접적으로 알려주는 것이다. 이 modifier는 모든 system call에서 쓰인다. 
         2. return type long. 32-bit와 64-bit system의 호환성을 위해 system call은 user-space에서는 int를 return하고
             kernel space에서는 long을 return한다.
         3. naming convention. ex) System call bar()가 있다면 이 함수는 kernel에서는 sys_bar()라는 함수로 구현되어있다.

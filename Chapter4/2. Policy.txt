@@ -50,7 +50,7 @@ Process Priority
 
 Timeslice
     process가 preempt되기 전까지 얼마나 실행될 수 있는지를 나타내는 numeric value이다.
-    The scheduler policy mush dictate a default timeslice, which is not a trivial exercise.         //
+    The scheduler policy must dictate a default timeslice, which is not a trivial exercise.         //
     timeslice가 너무 크면 interactive performance가 안좋아진다.
         -> 시스템이 더 이상 application이 동시에 실행한다고 느껴지지 않게 된다.
     timeslice가 너무 짧으면 process switch에 많은 overhead가 생기고 시스템 시간의 많은 부분이 낭비되게 된다.

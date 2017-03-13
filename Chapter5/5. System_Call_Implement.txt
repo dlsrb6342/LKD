@@ -1,6 +1,6 @@
 System Call Implement
     Linux에서 system call을 추가할 때, system call handler의 작업에 대해 신경 쓸 필요가 없다.
-    따라서 Linux에서 system call을 추가하는 일은 상대적으로 쉽다. system call을 desing하고 implement하는 것만
+    따라서 Linux에서 system call을 추가하는 일은 상대적으로 쉽다. system call을 design하고 implement하는 것만
     힘들 뿐, kernel에 등록하는 일은 간단하다.
 
     Implementing System Calls

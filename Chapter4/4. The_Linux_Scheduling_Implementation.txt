@@ -98,7 +98,7 @@ Time Accounting
         Waiting Queues
             wait queue는 어떤 event를 기다리는 process의 list이다. wait queues는 커널에서 wake_queue_head_t로 표현된다.
             wait queues are created statically via DECLARE_WAITQUEUE().
-                            created dynamically via init)waitqueue_head().
+                            created dynamically via init_waitqueue_head().
 
             그냥 간단하게 sleeping에 들어가는 것은 race condition에 빠질 수 있다. 예를 들어, process가 sleep에 들어가기 전에
             condition이 true가 되어서 process가 무기한으로 sleeping할 수도 있다. 따라서 조금 더 복잡한 방법이 필요하다.
