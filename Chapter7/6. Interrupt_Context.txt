@@ -1,0 +1,27 @@
+Interrupt Context
+    When executing an interrupt handler, kernel is in the interrupt context.
+    * process context : process 대신 kernel이 작동하는 경우.
+        process context에서 current macro는 associated task를 가리킨다.
+        process context에서는 process가 kernel과 연결되기 때문에 process context는 sleep할 수 있고
+         scheduler를 실행할 수 있다.
+
+    그러나 interrupt context에서는 process와 연결되지 않는다. current macro가 interrupted process를
+    가리키고 있다하여도 관계가 없다.
+    Without a backing process, interrupt context는 sleep할 수 없다.
+    그러므로 sleep할 수 있는 함수는 interrupt handler에서 사용할 수 없다.
+
+    interrupt handler가 다른 code를 interrupt하기 때문에 interrupt context는 time-critical하다.
+    따라서 빠르고 간결하게 끝내야 한다. 최대한 많은 work를 bottom half에게 넘겨줘야 한다.
+
+    interrupt handler's stack
+        a configuration option. 
+        원래는 interrupt handler는 자신의 stack을 할당받기 보다는 자신이 interrupt한 process의 stack을 
+         나눠 사용했다. kernel stack은 2 page인데 이렇게 되면 interrupt handler는 각별히 검소하게 사용해야 한다.
+        
+        2.6 kernel 초반의 process들은 stack size를 one page만 받을 수 있는 option이 생겼다.
+        따라서 이전에는 모든 process가 2 page를 할당받아야 했기 때문에 memory pressure가 있었다.
+        interrupt handler는 줄어든 stack size때문에 그들만의 stack을 할당받아야 한다. -> interrupt stack
+            * one stack per processor, one page in size
+
+        interrupt handler는 어떻게 stack이 설정되었고 크기가 어떤지 신경쓰지 말고 항상 가장 적은 양의
+         stack space를 사용해야 한다.

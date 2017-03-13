@@ -1,0 +1,52 @@
+Implementing Interrupt Handlers
+    Linux에서 interrupt handling system을 implementation하는 일은 architexture-dependent하다.
+        - the processor, the type of interrupt controller, and the design of the architecture and machine.
+
+    1. device sends interrupt by an electric signal to interrupt controller
+    2. if interrupt line is enabled, interrupt controller sends the interrupt to processor.
+    3. Unless interrupts are disabled in the processor, processor stop what it is doing.
+    4. processor disables the interrupt system, and jumps to a predefined location in memory.
+        and executes the code located there.
+        * this predefined point is set up by the kernel and is the entry point for interrupt handlers.
+
+    The interrupt's journey in the kernel
+        system call이 predefined exception handle를 통해 kernel로 들어가듯이 predefined entry point에서부터 시작된다.
+        각각의 interrupt line마다, processor가 memory에 있는 unique location으로 가고 그곳에 있는 code를 실행한다.
+        이 방법에서는, kernel이 들어온 interrupt의 IRQ number를 알고 있다.
+        inital entry point에 IRQ number를 저장하고 interrupted task가 사용하던 현재 register 값들을 stack에 저장한다.
+        이제 kernel은 do_IRQ()를 호출한다.
+
+        unsigned int do_IRQ(struct pt_regs regs) : 
+            function argument를 stack의 top에 두는 C calling convention 때문에, pt_regs structure는          //
+            assembly entry routine에서 저장했던 inital register value를 가지고 있다.
+            interrupt value도 저장되어있기 때문에 do_IRQ()가 그 값을 가져올 수 있다.
+            interrupt line 계산이 끝난 후 do_IRQ()는 interrupt에 대한 반응을 주고 interrupt line을 disable한다.
+            보통의 PC에서는 이 작업을 mask_and_ack_8295A()가 담당한다.
+
+            해당 line에 handler가 잘 등록되어있는지, 사용할 수 있는 상태인지, 현재 실행 중이진 않은지 확인한다.
+            확인 후, 해당 line에 등록된 interrupt handlers를 실행하기 위해 handle_IRQ_event()를 호출한다.
+
+        irqreturn_t handle_IRQ_event(unsigned int irq, struce irqaction *action) :
+            1. processor가 모든 interrupt를 disable했기 때문에, 해당 interrupt handler가 IRQF_DISABLED 설정이
+                안되어있으면 다시 enable시켜준다.
+            2. loop를 돌면서 handler를 찾는다. line이 shared가 아니라면, 첫번째 loop에서 끝난다.
+                shared라면 모든 handler가 실행된다.
+            3. IRQf_SAMPLE_RANDOM이 설정되어있다면 add_interrupt_randomness()가 호출된다.
+                * add_interrupt_randomness() :
+                    timing of interrupt를 이용해 random number generator를 위한 entropy를 만들어준다.
+            4. do_IRQ()는 interrupt가 모두 disabled이길 바라기 때문에 다시 disable해주고 
+                return해서 do_IRQ()로 돌아간다.
+            5. do_IRQ()로 돌아와서 function을 끝내고 initial entry point로 return한다. 
+                여기서 ret_from_intr()로 간다.
+
+        ret_from_intr()는 assembly로 작성되어있다. 이 함수는 rescheduling이 필요한지 check한다.
+        rescheduling이 필요하고 user-space로 return한다면, schedule()이 호출된다.
+        kernel-space로 return하는 경우에는, preempt_count가 0일때만 schedule()이 호출된다.
+        schedule()이 return되고 난 후나, rescheduling이 필요없는 경우, inital register 값들이 다시 restore되고
+        kernel은 interrupt된 일을 다시 시작한다.
+
+
+/proc/interrupts
+    procfs는 보통 /proc에 mount되는 kernel memory에만 존재하는 virtual filesystem이다. 
+    procfs에 있는 file을 읽고 쓰는 것은 실제 file을 읽고 쓰는것처럼 흉내내는 kernel function을 호출한다.    
+    

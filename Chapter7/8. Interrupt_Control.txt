@@ -1,0 +1,26 @@
+Interrupt Control
+    Linux kernel은 interrupts의 상태를 조정하기 위한 the family of interface를 구현해놨다.
+    이 interface들은 현재 processor의 interrupt system을 disable하거나, 
+     전체 machine에서 하나의 interrupt line을 mask out할 수 있게 해준다.
+    이 routine들은 다 architecture-dependent하다.
+
+    interrupt system을 제어하는 이유는 synchronization을 제공하기 위해서이다.
+    interrupt를 disable함으로써 interrupt handler가 현재 code를 preempt 못하게 한다.
+    또 interrupt를 disable하면 kernel preemption 또한 disable해준다.
+
+    interrupt disable이나 kernel preemption disable 둘다 다른 processor로부터의 concurrent한 access를
+    막아주지는 못한다.
+        -> 따라서 kernel code는 동시에 shared data로 접근하는 것을 막는 lock이 필요하다.
+            이러한 lock은 local interrupts disabling 결합으로 얻을 수 있다.
+            lock은 다른 processor로부터의 concurrent access를 막고
+            interrupt disabling은 possible interrupt handler로부터의 concurrent access를 막는다.
+
+
+Disabling and Enabling Interrupts
+    locally disable interrupt는 current processor만 해당한다.
+
+    local_irq_disable();        # disable interrupt
+    local_irq_enable();         # enable interrupt
+
+    위 2개의 함수 모두 보통 single assembly operation으로 구현된다.(architecture-dependent)
+    
