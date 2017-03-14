@@ -1,0 +1,133 @@
+Tasklets
+    Tasklets have nothing to do tasks.
+    Tasklets are similar in nature and behavior to softirqs.
+    however they have a simpler interface and relaxed locking rules.
+
+    tasklet을 사용할지 softirq를 사용할지 고민할 때 보통의 경우 거의 tasklet이 맞다.
+    softirq는 high frequency and highly threaded uses에서만 필요하다.
+    tasklet이 대부분의 경우에서 잘 작동하고 사용하기도 쉽다.
+
+
+Implementing Tasklets
+    tasklets are softirqs
+    tasklets은 HI_SOFTIRQ 와 TASKLET_SOFTIRQ로 표현된다. 
+    HI_SOFTIRQ가 TASKLET_SOFTIRQ보다 먼저 실행된다.
+
+    The Tasklet Structure
+        tasklet_struct structure로 표현된다.
+
+        struct tasklet_struct {
+            struct tasklet_struct *next;        /* next tasklet in the list */
+            unsigned long state;                /* state of the tasklet */
+            atomic_t count;                     /* reference counter */
+            void (*func) (unsigned long);       /* tasklet handler function */
+            unsigned long data;                 /* argument to the tasklet function */
+        };
+
+        func member     : tasklet handler를 나타낸다.(softirq의 action과 같다.)
+        state member    :
+            zero                    - 
+            TASKLET_STATE_SCHED     - tasklet이 실행되기 위해 scheduling된 상태
+            TASKLET_STATE_RUN       - tasklet이 실행 중인 상태
+                                      multiprocessor system에서만 사용한다. uniprocessor에서는 실행 중인지 알 수 있다.
+        count member    : reference count, 0이 아니면 tasklet은 disable이고 실행될 수 없다.
+                          0이 라면 enable이고 만약 mark되어있다면 실행될 수 있다.
+
+    Scheduling Tasklets
+        scheduled tasklets는 per-processor structure가 2개씩 저장된다.
+        tasklet_vec     : linked list for regular tasklets( TASKLET_SOFTIRQ 사용 )
+                          tasklet_schedule() -> __tasklet_schedule()
+        tasklet_hi_vec  : linked list for high-priority tasklets( HI_SOFTIRQ 사용 )
+                          tasklet_hi_schedule() -> __tasklet_hi_schedule()
+
+        tasklet_schedule(), tasklet_hi_schedule()은 tasklet_struct의 pointer를 받아서
+         해당 tasklet이 아직 scheduling이 안되었다면 __tasklet_schedule(), __tasklet_hi_schedule()을 호출
+        __tasklet_schedule(), __tasklet_hi_schedule() 이 둘은 비슷하다.
+
+        tasklet_schedule() :
+            1. argument로 넘어온 tasklet의 state가 TASKLET_STATE_SCHED인지 확인한다. TASKLET_STATE_SCHED라면
+                즉시 return한다.
+            2. __tasklet_schedule()을 호출한다.
+            3. interrupt system의 state를 저장하고 local interrupts를 disable한다.
+                이 processor에서 tasklet_schedule()이 tasklets를 조작하는 동안 다른 것들이 어지럽히지 않게 한다.
+            4. tasklet을 tasklet_vec이나 tasklet_hi_vec linked list의 head에 넣는다.
+                * tasklet_vec, tasklet_hi_vec은 processor마다 unique하다.
+            5. TASKLET_SOFTIRQ나 HI_SOFRIRQ sorfirq를 raise하고 do_softirq()를 통해 이 tasklet을 실행한다.
+            6. interrupt system의 상태를 restore하고 return한다.
+
+        대부분의 tasklet과 softirq는 interrupt handler가 끝나고 pending mark가 되기 때문에, 
+         the last interrupt가 return하고 나서 do_softirq()가 실행된다.
+
+        TASKLET_SOFTIRQ나 HI_SOFRIRQ가 raise되었기 때문에 do_softirq()에 의해 관련된 handler들이 실행된다.
+        handler : tasklet_action(), tasklet_hi_action()이 대부분의 taslet processing을 한다.
+            1. local interrupt delivery를 disable한다. 
+                * 이 상황에서는 interrupt state를 저장할 필요가 없다. 항상 softirq handler로써 호출되기 때문에,
+                   이 때에 interrupt는 항상 enable되어있다.
+               해당 processor의 tasklet_vec이나 tasklet_hi_vec을 가져온다.
+            2. 해당 processor의 list( tasklet_vec이나 tasklet_hi_vec )를 NULL로 clear한다.
+            3. local interrupt delivery를 enalbe한다. 1번에서와의 같은 이유로 restore할 필요없다.
+            4. 가져온 list에서 pending tasklet을 찾아 loop를 돈다.
+            5. 만약 multiprocessing machine이라면 TASKLET_STATE_RUN flag를 확인해서 
+                tasklet이 현재 다른 processor에서 실행중인지 확인한다.
+                현재 실행 중이라면 skip하고 다음 pending tasklet으로 넘어간다.
+            6. 현재 실행 중이 아니라면 TASKLET_STATE_RUN을 set해서 다른 processor에서 실행되는 것을 막는다.
+            7. count value가 0인지 확인한다. 0이 아니라면 disable이므로 다음 tasklet으로 넘어간다.
+            8. Run tasklet handler.
+            9. tasklet을 실행하고 나서 TASKLET_STATE_RUN flag를 clear한다.
+            10. Repeat for the next pending tasklet, until no more scheduled tasklets.
+
+
+Using Tasklets
+    Declaring Your Tasklet
+        tasklet은 dynamic or static하게 생성할 수 있다.
+        static하게 생성할 때는 아래 2개의 macro를 활용할 수 있다.
+            DECLARE_TASKLET(name, func, data);
+            DECLARE_TASKLET_DISABLED(name, func, data);
+            -> 2개의 macro 모두 static하게 주어진 name으로 tasklet_struct를 만든다.
+                tasklet이 schedule되면, func이 실행되고 data가 argument로 넘어간다. 
+                2개의 macro의 차이는 초기 reference count가 다르다.
+                -> DECLARE_TASKLET은 count를 0으로, DECLARE_TASKLET_DISABLED은 1로 한다.
+                ex) DECLARE_TASKLET(my_tasklet, my_tasklet_handler, dev);
+                        -> struct tasklet_struct my_tasklet = { NULL, 0, ATOMIC_INIT(0),
+                                                                my_tasklet_handler, dev };
+
+        dynamic하게 생선된 struct tasklet_struct t에 대한 tasklet을 initialize하기 위해,
+         tasklet_init()을 호출한다.
+        tasklet_init(t, tasklet_handler, dev);
+
+    Writing Your Tasklet Handler
+        task handler는 반드시 밑의 prototype을 지켜야 한다.
+            void tasklet_handler(unsigned long data)
+        tasklet은 softirq처럼 sleep할 수 없다. 따라서 semaphore나 다른 blocking function을 쓸 수 없다.
+        tasklet은 모든 interrupt를 enable하고 실행되기 때문에 만약 tasklet이 interrupt handler와
+         data를 공유한다면 interrupt disable이나 lock같은 precaution이 필요하다.
+        softirq와 달리, tasklet은 같은 tasklet이 동시에 실행될 수 없다. 만약 다른 tasklet이나 softirq와
+         data를 공유한다면 적절한 locking을 사용해야 한다.
+
+    Scheduling Your Tasklet
+        tasklet을 schedule하기 위해, tasklet_schedule()을 호출한다.
+            tasklet_schedule(&my_tasklet);
+        schedule된 tasklet은 빠른 시일 내에 실행된다. 만약 이미 schedule된 tasklet을 다시 schedule해도,
+         한번만 실행된다. 또 해당 tasklet이 이미 실행 중이라면, 다시 schedule되고 다시 실행된다.
+        optimization으로써, tasklet은 processor의 cache를 활용하기 위해 schedule된 processor에서 실행된다. 
+
+        tasklet_disable()을 통해 tasklet을 disable할 수 있다. 현재 tasklet이 실행 중이라면 그것이 끝날 때까지
+        기다렸다가 return된다. 대신 tasklet_disable_nosync()로 하면, tasklet이 실행 중이더라도 그것을 기다리지 않고
+        disable시킨다. 그러나 이 함수는 보통 not safe하다.
+        tasklet_enable()을 통해 tasklet을 enable할 수 있다.                                         //
+        tasklet_kill()을 통해 pending queue에서 tasklet을 없앨 수 있다. tasklet_struct의 pointer를 받는다.
+        queue에서 scheduled tasklet을 없애는 일은 tasklet이 종종 reschedule되는 일을 처리하는데 유용하다.
+
+
+ksoftirqd
+    Softirq processing은 per-processor kernel threads의 set이 한다. 이 kernel thread들이 
+     system이 softirq로 인해 뒤덮였을 때 도움을 준다.
+
+
+
+
+
+
+
+
+
