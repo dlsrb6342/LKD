@@ -1,0 +1,15 @@
+Locking Between the Bottom Halves
+    하나의 processor에서 실행되더라도, bottom halves를 진행하는 동안 shared data에 동시 접근을 막는 것은 중요하다.
+
+    tasklet의 장점 중 하나는 그들은 동시에 같은 tasklet이 실행되지 않는다는 점이다. 이 점은 intra-tasklet 동시성에
+    대해서는 고려할 필요가 없다는 것을 의미한다. inter-tasklet 동시성에 대해서는 적절한 locking이 필요하다.
+    * intra-tasklet : 같은 tasklet
+      inter-tasklet : 서로 다른 tasklets
+    softirq는 같은 softirq가 동시에 실행될 수 있기 때문에 모든 shared data가 적절한 lock을 필요로 한다.
+
+    만약 process context code와 bottom half가 data를 공유한다면 bottom-half를 disable해야 하고 
+     data에 접근하기 전에 lock을 얻어야 한다. 
+    이 방법을 통해 local, SMP protection을 얻을 수 있고 deadlock도 예방할 수 있다.
+
+    work queue에서도 shared data에 대한 locking이 필요하다. work queue는 process context에서 실행되기 때문에
+    다른 평범한 kernel code처럼 locking을 다룬다.

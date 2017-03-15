@@ -121,13 +121,58 @@ Using Tasklets
 
 ksoftirqd
     Softirq processing은 per-processor kernel threads의 set이 한다. 이 kernel thread들이 
-     system이 softirq로 인해 뒤덮였을 때 도움을 준다.
+     system이 softirq로 뒤덮였을 때 도움을 준다.
+    앞서 얘기했듯이, kernel은 softirq를 대부분의 경우 interrupt halder가 return했을 때 실행하지만 여러 경우에 실행한다.
+    softirq는 high rate로 raise될수도 있고 게다가 자기자신을 다시 activate시킬 수 있다.
+    softirq가 high frequency를 가질 가능성과 그들 자신을 remark할 수 있다는 점 때문에 
+     user-space program들이 processor-time을 못 받을 수 있다.
+    다시 실행되는 softirq를 시간에 따라 실행되지 못하게 하는건 받아들일 수 없다.
+
+    First solution :
+        들어온 softirq에 대한 작업을 수행하고 return하기 전에 아직 pending softirq가 있는지 확인하고 다시 실행하는 방법이다.
+        이 방법은 kernel이 timely manner로 softirq를 실행하고 다시 activate된 softirq 또한 즉시 실행할 수 있다.
+
+        하지만 softirq가 자주 발생하는 high load environment에서는 softirq를 계속 reactivate하는 문제가 있다.
+        kernel이 다른 일은 수행하지 않고 계속 softirq를 실행하게 된다. 
+
+        이 방법은 큰 load를 수행할 일이 없는 system에서는 잘 작동할 것이다. 
+        적당한 interrupt level를 가진 system에서 이 solution은 받아들여지지 않는다.                        //
+        User-space는 중요한 시기에 starve할 수 없다.
+
+    Second solution :
+        reactivated softirq들을 handle하지 않는 방법이다.
+        pending softirq를 실행하고 나서 만약 reactivate된 softirq가 있더라도 실행하지 않는다.
+        kernel이 pending softirq를 다시 handle할 때까지 실행되지 않는다.
+        -> 다음 interrupt가 발생할 때까지 실행되지 않는다는 말과 거의 같다.
+        -> 새로운(reactivated) softirq가 발생하기 전 아주 긴 시간동안 실행되지 않을 수 있다.
+
+        더 큰 문제는 idle system에서는 softirq를 바로 실행하는 것이 더 유리하다. 하지만 이 방법으로는
+        어떤 process가 runnable인지 모른다. 그러므도 이 방법이 user-space의 starving을 막지만
+        softirq를 starve하게 하고 idle system에서는 좋은 점이 없다.
+
+    The solution : 
+        reactivated process를 즉시 실행하지는 않는다. 대신 softirq의 숫자가 지나치게 커진다면,
+        kernel이 load를 handling하는 kernel thread들을 깨운다. 깨워진 kernel thread들은 다른 중요한 process 대신 
+        실행되는 것을 막기 위해 low priority(nice value 19)로 실행된다. 이러한 양보가 heavy softirq activity가
+        user-space의 starving을 야기하는 것을 막고, 반대로 많은 softirq가 결국 실행되게 한다.
+        idle system에서는 kernel thread가 즉시 schedule될 것이기 때문에 다소 빨리 softirq가 handle될 것이다.
+
+        processor당 한 개의 thread를 갖는다. 이 thread들은 ksoftirqd/n 이라는 이름을 가진다. 여기서 n은 processor number이다.
+        각 processor마다 한 개의 thread를 가짐으로써 idle processor에서는 softirq를 항상 service할 수 있다.
+
+        ksoftirqd는 pending softirq가 있다면 do_softirq()를 호출하고 handle한다.
+        iteration마다 schedule()를 호출해서 더 중요한 process를 실행시킨다.
+        ksoftirqd는 do_softirq()가 reactivating하는 kernel thread를 감지할때마다 깨어난다.
 
 
+The Old BH Mechanism
+    BH는 statci하게 define되어야 하고 최대 32개만 가질 수 있다.
+    이러한 static requirement와 최대 32개의 bottom halves는 사용의 주요 장애가 되었다.
 
+    모든 BH handler는 동시에 실행될 수 없다. 이러한 특징은 synchronization을 쉽게 만들지만, multiprocessor에서는
+    좋지 않다.
+    BH interface는 multiprocessor에서 scale이 잘 되지 않는다.
 
-
-
-
-
-
+    BH mechanism은 tasklet과 비슷하다. 사실 2.4에서는 tasklet을 바탕으로 BH interface를 만들었다.
+    To mark a BH as pending, mark_bh() was called.
+    bh_action()이 BH tasklet을 실행하기 위해 scheduling한다.

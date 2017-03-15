@@ -1,0 +1,16 @@
+Disabling Bottom Halves
+    안전하게 shared data를 보호하려면 disabling bottom halves와 locking 이 둘다 필요하다.
+    만약 core kernel code를 작성 중이라면 bottom halves만 disable해주면 된다.
+
+    모든 bottom-half processing(softirq, tasklet)을 disable하기 위해서는 local_bh_disable()을 호출하면 된다.
+    다시 enable하기 위해서는 local_bh_enable()을 호출하면 된다.
+
+    이 함수들은 nested될 수 있다. 마지막에 local_bh_enable()을 호출해야지만 enable된다. 
+
+    이 함수들은 task마다 preempt_count를 유지해서 수행한다. 
+    preempt_count가 0이면 bottom-half processing이 가능하다는 것을 의미한다. 
+    bottom halves가 disable되었기 때문에 local_bh_enable()은 pending bottom halves가 있는지 확인하고
+     그들을 실행한다.
+
+    이 함수들은 work queue의 실행은 disable하지 않는다. work queue는 process context에서 실행되기 때문에
+    비동기적 실행에 대한 issue가 없다. 그러므로 work queue는 disable할 필요가 없다.

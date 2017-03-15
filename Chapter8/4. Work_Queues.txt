@@ -1,0 +1,162 @@
+Work Queues
+    Work Queue는 지금까지 봤던 것과 다르다.
+    Work Queue는 work를 kernel thread에게 미룬다. 이 bottom half는 항상 process context에서 실행되게 된다.
+    그러므로 미뤄진 code는 process context의 장점을 모두 갖는다.
+    가장 중요한 것은 work queue는 schedulable하고 그러므로 sleep할 수 있다.
+
+    deferred work가 sleep을 해야 하는 경우, work queue를 사용하고 아니면 softirq나 tasklet을 사용한다.
+    보통의 경우 kernel threads가 work queue를 대신 할 수 있다. 새로운 kernel thread를 만드는 일을 싫어하기 때문에
+    work queue를 사용하는 것이 훨씬 선호된다. 굉장히 사용하기 쉽다.
+
+    bottom-half processing 간에 schedulable entity가 필요하다면 work queue를 써라.
+    work queue는 process context에서 실행되는 유일한 mechanism이다. 따라서 sleep할 수 있는 유일한 mechanism이다.
+    많은 메모리 할당이 필요하거나 semaphore를 얻어야 하거나 block I/O를 실행한다면 굉장히 유용할 수 있다.
+    만약 deferred work에서 kernel thread가 필요없다면 tasklet을 고려해봐라.
+
+
+Implementing Work Queues
+    work queue subsystem은 queued work를 handle하는 kernel thread를 만드는 interface이다.
+    이러한 kernel thread를 worker thread라고 한다. 
+    work queue는 driver가 worker thread를 만들게 한다. 하지만 work queue subsystem이 default worker thread를
+    제공해줘서 보통의 경우, work queue는 kernel thread에게 work를 미뤄주는 간단한 interface를 갖는다.
+
+    default worker thread는 processor당 하나씩 있고 events/n 이라고 불린다. 여기서 n은 processor number이다.
+    kernel에 있는 driver들은 default thread에게 그들의 bottom half를 미룬다. 
+    driver나 subsystem이 그들만의 thread를 만들려고 하지 않는다면 보통 default thread가 선호된다.
+    
+    자신만의 worker thread를 만드는 껏은 worker thread에서 많은 일을 해야할 때 유용하다.
+    Processor-intense하고 performance-critical한 work에 대해서는 자신만의 thread가 더 이득이다.
+    자신만의 worker thread를 가지면 default thread의 일을 줄여줄 수도 있다.
+
+    Data Structures Representing the Threads
+        worker threads are represented by the workqueue_struct structure.
+
+        struct workqueue_struct {
+            struct cpu_workqueue_struct cpu_wq[NR_CPUS]
+            struct list_head list;
+            const char *name;
+            int singlethread;
+            int freezeable;
+            int rt;
+        }
+        각 작업 thread type마다 하나의 workqueue_struct를 가진다.
+        one per possible processor의 갯수를 가지는 cpu_workqueue_struct array를 가진다.
+        worker thread의 중요한 data는 cpu_workqueue_struct에 있다.
+
+        struct cpu_workqueue_struct {
+            spinlock_t lock;
+            struct list_head worklist;
+            wait_queue_haed_t more_work;
+            struct work_struct *current_struct;
+            struct workqueue_struct *wq;
+            task_t *thread;
+        }
+        worker thread의 type으로 workqueue_struct를 가진다. 각각의 thread마다 cpu_workqueue_struct를 가진다.
+
+    Data Structures Representing the Work
+        모든 worker thread는 worker_thread()로 실행되는 보통의 kernel thread로 구현된다.
+        initial setup 이후, infinite loop으로 들어가고 sleep하게 된다.
+        queue에 work가 쌓였을 때, thread가 깨어나고 work를 실행한다.
+
+        work is represented by the work_struct structure
+
+        structure work_struct {
+            atomic_long_t data;
+            struct list_head entry;
+            work_func_t func;
+        }
+
+        위의 structure가 linked list로 엮이고 각각의 processor마다 각각의 queue의 type마다 하나씩 있다.
+        worker thread가 깼을 때, list에 있는 work를 실행한다. 실행한 후 해당 work_struct를 linked list에서
+        제거한다. 만약 list가 비었으면 다시 sleep한다.
+
+        worker_thread() :
+            infinite loop
+            1. TASK_INTERRUPTIBLE로 state를 set하고 wait queue에 넣는다.
+            2. linked list of work가 비었으면 schedule()을 호출하고 sleep한다.
+            3. linked list of work가 비어있지 않으면 sleep하지 않고 TASK_RUNNING으로 state를 바꾸고
+                wait queue에서 제거한다.
+            4. linked list of work가 비어있지 않으면 run_workqueue()를 호출하고 deferred work를 수행한다.
+
+        run_workqueue() :
+            performs the deferred work.
+            pending work의 linked list의 처음부터 loop를 돌면서 work_struct의 func member를 실행한다.
+
+            1. list가 빌 때까지 다음 entry를 가져온다.
+            2. 실행되어야 할 func와 그것의 argument인 data를 가져온다.
+            3. list에서 해당 work_struct를 없애주고 work_struct의 pending bit를 clear해준다.              //
+            4. function을 실행한다.
+            5. 반복
+
+    Work Queue Implementation Summary
+        서로 다른 data structure들 사이의 관계는 상당히 복잡하다.
+        the highest level : worker threads
+        여러 type의 worker thread가 있고 type마다 processor당 하나씩 worker thread가 있다.
+        필요하면 worker thread를 만들 수 있다. 기본적으로 events worker thread가 있다.
+        각각의 worker thread는 cpu_workqueue_struct structure로 표현된다.
+        workqueue_struct structure가 한가지 type에 대한 모든 worker threads를 표현한다.
+
+        work_struct structure가 driver가 만들어내는 work를 표현한다.
+        이 structure 안에 deferred work를 handle하는 function을 가리키는 pointer를 가지고 있다.
+        이 work는 worker thread에 보내지고 worker thread는 wake up해서 work를 수행한다.
+
+
+Using Work Queues
+    Creating Work
+        가장 먼저, 미룰 work를 만들어야 한다. runtime에 static하게 생성하기 위해 DECLARE_WORK()를 쓴다.
+
+        DECLARE_WORK(name, void (*func)(void *), void *data);
+        이름 : name, handler function : func, argument : data로 work_struct를 만든다.
+
+        pointer를 통해 runtime에 work를 생성할 땐 INIT_WORK()를 쓴다.
+
+        INIT_WORK(struct work_struct *work, void (*func)(void *), void data);
+        work가 가리키는 work queue를 handler function func와 argument data를 가지게 설정한다.              //
+
+    Your Work Queue Handler
+        prototype for the work queue handler
+            void work_handler(void *data)
+
+        work thread가 이 function을 실행하고 이 function은 process context에서 실행된다.
+        기본적으로, interrupt가 허용되고 잡혀있는 lock이 없다. 필요하다면 sleep할 수도 있다.
+        process context에서 실행되지만, kernel thread는 관련된 user-space memory map이 없기 때문에
+        user-space memory에 접근할 수 없다.
+        다른 work queue나 kernel의 다른 부분들과의 locking은 다른 process context code와 똑같이
+        관리된다. 이것이 work handler를 쓰는 것을 쉽게 만든다.
+
+    Scheduling Work
+        work가 만들어졌으면 scheduling해야 한다. default events worker threads를 쓴다면 work의 handler function을
+        queue하기 위해서는 schedule_work(&work);를 호출한다.
+        work는 즉시 schedule되고 event worker thread가 wake up하면 실행된다.
+        만약 work를 바로 실행할 필요없이 나중에 실행되도 된다면 schedule_delayed_work(&work, delay);를 쓰면 된다.
+
+    Flushing Work
+        Queued work는 worker thread가 next wake up했을 때 실행된다. 때때로 work를 진행하기 전에 주어진 work들이
+        다 완료되었는지 확실히 해야 한다. 이것은 특히 함수를 unloading 전에 실행하길 원하는 module들에게 중요하다.
+        또 kernel에는 race condition을 예방하기 위해 pending 중인 work가 없다는 것을 확실히 해야하는 부분들이 있다.
+
+        위의 이유때문에 work queue를 flush하는 함수가 필요하다.
+        
+        void flush_scheduled_work(void);
+            이 함수는 queue에 있는 모든 work들이 다 실행되기 전까지 return하지 않고 sleep한다.
+            그러므도 이 함수는 process context에서 불려야 한다.
+
+            이 함수는 delayed work를 취소하지는 않는다. 즉 schedule_delayed_work()를 통해 schedule된 work는
+            flush되지 않는다.
+
+        int cancel_delayed_work(struct work_struct *work);
+            이 함수가 delayed work를 cancel한다. argument work와 관련있는 pending work를 취소한다.
+
+    Creating New Work Queues
+        struct workqueue_struct *create_workqueue(const char *name);
+            이 함수를 통해 work queue와 worker threads를 만들 수 있다.
+            name은 kernel thread의 이름으로 쓰인다.
+            이 함수가 processor당 하나씩의 모든 thread를 만들어주고 work를 handle할 준비한다.
+
+        work를 만드는 일은 default worker thread와 똑같이 실행된다. 
+        scheduling하는 것은 비슷하지만 약간 다른 함수로 실행된다.
+
+        int queue_work(struct workqueue_struct *wq, struct work_struct *work)
+        int queue_delayed_work(struct workqueue_struct *wq, struct work_struct *work, unsigned long delay)
+
+        work queue를 flush하는 함수는 flush_workqueue(struct workqueue_struct *wq)이다.
