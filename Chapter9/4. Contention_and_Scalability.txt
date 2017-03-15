@@ -1,0 +1,40 @@
+Contention and Scalability
+    lock contention(or contention) :
+        lock이 현재 사용 중에 있고 다른 thread가 해당 lock을 얻길 기다리고 있는 상황을 말한다.
+        highly contended lock이란 thread가 자주 해당 lock을 얻기 위해 기다리는 lock이다.
+
+    high contention은 lock이 자주 obtain되거나, 한번 obtain하면 오래 잡고 있거나 둘 다일 경우 일어날 수 있다.
+    lock이 system의 performance를 저하시킬 수 있다는 것은 놀라운 일이 아니다.
+    highly contended lock은 system의 bottleneck이 될 수 있다.
+
+    Scalability :
+        a measurement of how well a system can be expanded.
+        우리가 scalability에 대해 얘기할 때, process의 개수, processor의 개수, memory의 크기를 가지고 얘기한다.
+        scalability에 대한 얘기는 우리가 더 크게 할 수 있는 computer의 어떤 component에 대한 얘기가 될 수 있다.
+
+    the granularity of locking :
+        하나의 lock이 보호하고 있는 data의 size나 양을 말한다.
+
+        coarse lock은 많은 양의 data를 보호하고(entire subsystem's set of data structure)
+        fine-grained lock을 작은 양의 data를 보호한다.(only a single element)
+        사실 대부분의 lock이 위 2가지 사이에 있다.(a single sturcture or a list of structures)
+
+        kernel <= 2.4에서는 scheduler가 단 하나의 single runqueue가 있었다. 2.6 초기부터는
+        O(1) scheduler가 각각의 runqueue마다 a unique lock을 가지는 per-processor runqueue를 소개했다.
+        locking이 a single global lock에서 separate locks for each processor로 발전했다.
+         이것은 highly contended lock을 나눈 것이기 때문에 중요한 optimization이 되었다.
+        2.6 이상 부터는 CFS scheduler가 scheduler를 더 향상시켰다.
+
+    scalability가 향상하면서 크고 강한 system에서의 Linux의 performance가 늘었다. 하지만 작은 SMP나 UP에서는
+    performance가 떨어질 수 있다.
+        -> 작은 machine은 fine-grained locking이 필요없다. 너무 작은 것까지 lock을 걸다보면 overhead가 생겨
+            낭비된다.
+
+    그럼에도 불구하고 scalability는 중요한 고려대상이다. 
+    시작부터 당신의 locking이 scale이 잘 되게 design하는 것이 중요하다.
+    major resouce에 대한 coarse locking은 small machine에서조차 bottleneck이 될 수 있다.
+    너무 coarse한 locking이 있다면 high lock contention이 있는 환경에서 poor scalability를 보인다.
+    너무 fine한 locking이 있다면 little lock contention이 있는 환경에서 wasteful overhead를 보인다.
+    -> 위의 2 문장 모두 poor performance를 뜻한다.
+
+    Start simple and grow in complexity only as needed. Simplicity is key.

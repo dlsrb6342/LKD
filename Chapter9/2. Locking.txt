@@ -1,0 +1,79 @@
+Locking
+    infinitely sized critical region에 대해서 atomic하게 구현하는 것은 바보같은 짓이다.
+    따라서 어떤 한 시점에 단 하나만의 thread만이 해당 data structure를 조작할 수 있게 하는 
+     mechanism이 필요하다. 
+
+    Threads hold locks; Locks protect data.
+
+    lock은 한 시점에 단 하나만의 thread가 잡을 수 있기 때문에 only a single thread만 변수를 
+    조작할 수 있다. 다음에 오는 thread는 첫 thread가 lock을 놓을 때까지 기다려야 한다.
+
+    lock은 동시성을 예방하고 race condition을 막는다.
+    lock은 추천되고 조언되지만 온전히 progaramming construct이다.
+    lock은 여러 mechanism이 있다. 가장 큰 차이는 lock을 사용할 수 없을 때 취하는 행동이다.
+
+    lock이 근본적인 문제를 해결하는 것은 아니다. 그저 critical region을 lock, unlock code로 줄인 것이다.
+    * 굉장히 작긴 하지만 잠재적인 race가 있다.
+    lock은 atomic operation으로 구현되어있어서 race가 있을 수 없다.
+    이 atomic operation은 architecture-specific하지만 거의 모든 processor들은
+    하나의 atomic한 operation인 test and set으로 구현한다.
+    * test and set : tests the value of an integer and 
+                    sets it to a new value only if it is zero / zero means unlocked
+    x86에서는 locks은 compare and exchange라고 불리는 비슷한 instruction으로 구현된다.
+
+
+Causes of Concurrency
+    scheduler의 의도에 따라 program이 preemptive하게 schedule되기에 synchronization이 필요하다.
+    
+    process가 언제든 preempt될 수 있고 다른 process가 processor에 올라올 수 있기 때문에, process가
+    critical region에 접근할 때 preempt될 수 있다.
+    새로 schedule된 process가 같은 critical region에 접근하려 한다면 race가 일어날 수 있다.
+    위와 같은 문제가 multiple single-threaded processes sharing files이나
+     single program with signals(signal이 비동기적으로 발생하기 때문에)에서 똑같이 발생할 수 있다.
+    이러한 실제도 똑같은 시간에 일어나지는 않지만 서로 상호 배치할 수 있는 상황에서 일어나는 문제를 pseudo-concurrency라고 한다.
+
+    SMP machine에서는 2개의 process가 동시에 똑같은 critical region에서 실행될 수 있다. 
+    이러한 것을 true-concurrency라고 한다. 
+
+    true-concurrency, pseudo-concurrency가 원인과 의미가 서로 다르지만 똑같이 race condition을 일으키고
+    똑같은 proctection을 요구한다.
+
+    kernel의 cause of concurrency
+        1. Interrupt :
+            interrupt는 언제든 비동기적으로 발생할 수 있고 현재 진행 중인 code를 interrupt한다.
+        2. Softirqs and Tasklets :
+            kernel은 언제든 softirq나 tasklet을 rais하거나 schedule할 수 있고 현재 진행 중인 code를 interrupt한다.
+        3. Kernel preemption :
+            kernel이 preempt될 수 있기 때문에 kernel에 있는 한 task가 다른 것을 preempt할 수 있다.
+        4. Sleeping and synchronization with user-space :
+            kernel에 있는 task가 sleep할 수 있고 새로운 process를 실행시키는 scheduler를 실행할 수 있다.
+        5. Symmetrical multiprocessing :
+            여러 processor가 정확히 같은 시간에 kernel code를 실행할 수 있다.
+
+    system을 stable에게 유지하기 위한 locking을 제공하는 것은 어려운 부분이 아니다. 어려운 부분은 이러한 condition을
+    찾아내고 concurrency를 막아야 한다는 것을 알아차리는 것이다. 
+
+    critical region을 식별하고 이미 존재하는 code에 locking을 넣어 개선하는 것은 어렵다. 그리고 결과로 나온 code도
+    별로 pretty하지 않는다. 항상 처음부터 code에 적절한 locking을 넣어 design하는게 좋다.
+
+    interrupt-safe, SMP-safe, preempt-safe : *로부터의 concurrency에 대해 안전하다.
+
+
+Knowing What to Protect
+    concurrent하게 접근되는 어떤 data든 다 protection이 필요하기 때문에, 
+     protection이 필요없는 data를 찾는 것이 쉬울 수 있다.
+    하나의 특정 thread에 local한 data는 특정 thread만 접근할 수 있기 때문에 proctection이 필요없다.
+
+    대부분의 global kernel data structure는 lock이 필요하다.
+    다른 thread가 data에 접근할 수 있으면 그 data는 locking이 필요하다.
+    만약 누구든 그 data를 볼 수 있으면 locking이 필요하다.
+
+    kernel code를 쓸 때, 밑의 question들을 확인해라
+        1. data는 global인가? 현재의 thread가 아닌 다른 thread의 실행으로 data에 접근이 가능한가?
+        2. process context와 interrupt context 사이에서 공유되는 data인가?
+           2개의 다른 interrupt handler 사이에서 공유되는가?
+        3. data에 접근하는 중에 preempt되었을 때 새로 schedule된 process가 data에 접근하는가?
+        4. 현재 process가 sleep(block)할 수 있는가? 그렇다면, 그 상황에서 shared data를 남겨두는가?
+        5. 나에게서 data를 자유롭게 하는 것을 막는게 무엇인가?
+        6. 다른 processor에서 똑같은 함수를 호출했을 때 무슨 일이 일어나는가?
+        7. 진행 상황에서, 어떻게 내 code가 concurrency로부터 안전한지 확신할 수 있는가?

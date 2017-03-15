@@ -1,0 +1,17 @@
+Deadlocks
+    하나 이상의 thread의 실행과 하나 이상의 resource가 있을 때, 각각의 thread가 어떤 한 resouce를 기다리는데
+     모든 resource가 이미 사용 중일때 발생하는 조건이다.
+    모든 thread가 서로를 기다리지만 아무도 그들이 잡고 있는 resource를 놓지 않아서 진행되지 않는다.
+    그러므로 모든 thread가 계속되지 못하고 deadlock에 걸리게 된다.
+
+    deadlock을 막는 것은 매우 중요하다. code가 deadlock으로부터 자유롭다는 것을 증명하는 것은 어렵지만
+    deadlock-free code를 쓸 수 있다.
+    simple rules
+        1. lock ordering을 구현해라. nested lock은 항상 같은 순서로 요청해야 한다.
+            이것이 deadly embrace deadlock을 막을 수 있다. 
+        2. starvation을 막아라. 이 코드가 항상 끝나는가? 만약 foo가 일어나지 않는다면, bar는 영원히 기다리는가?
+        3. 같은 lock을 2번 얻지 마라.
+        4. Design for simplicity. Complexity in your locking scheme invites deadlocks.
+
+    lock ordering은 중요하지만 order of unlock은 deadlock에서 중요하지 않다. 
+    보통의 경우, lock을 얻은 순서의 반대로 unlock한다.

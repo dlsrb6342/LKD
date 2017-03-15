@@ -1,0 +1,12 @@
+Critical Regions and Race Conditions
+    shared memory application에서는 shared resource에 대한 동시 접근을 막아야 한다.
+    kernel 또한 제외되지 않는다. 
+    Linux가 SMP를 제공하고 kernel code를 preempt할 수 있게 되면서 kernel 또한 protection이 필요해졌다.
+
+    shared data에 접근하고 조작하는 code 부분을 critical regions(critical sections)이라고 한다.
+    동시에 한 resource에 접근하는 것은 보통 안전하지 않다. critical region 동안 동시에 접근하는 것을 막기 위해,
+     critical region이 atomic하게 실행되게 해야 한다.
+    * atomic : critical region을 하나의 instruction처럼 interrupt없이 critical region을 완료하는 것을 말한다.
+    같은 critical region을 동시에 2개의 thread가 실행할 수 있는 것은 bug이다.
+    -> 이 같은 일이 일어나는 것을 race condition이라고 한다.
+    안전하지 않는 동시성을 막고 race condition이 일어나지 않게 하는것을 synchronization이라고 한다.
