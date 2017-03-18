@@ -1,0 +1,72 @@
+Semaphores
+    Semaphores in Linux are sleeping locks.
+     어떤 task가 이미 사용 중인 semaphore를 얻으려고 한다면 해당 task를 wait queue에 넣는다.
+     processor는 이제 다른 task를 실행할 수 있게 된다.
+     semaphore가 사용 가능해지면 wait queue에 있는 task 중 하나가 깨어나서 semaphore를 얻는다.
+
+    Semaphore는 busy looping이 없기 때문에 spinlock 보다 processor utilization이 높다. 
+     하지만 context-switching이 있기 때문에 overhead가 spin lock보다 크다.
+
+    1. 긴 시간동안 잡혀있는 lock인 경우 semaphore가 잘 어울린다.
+    2. lock이 short period동안 잡혀있는 경우, sleeping overhead와 wait queue를 유지하는 비용, 
+        wake-up하는 비용을 생각하면 semaphore는 부적절하다.
+    3. process가 lock contention을 만나면 sleep해야 하기 때문에 interrupt context에서는 얻을 수 없고
+        무조건 process context에서만 얻을 수 있다.                                                         //
+    4. semaphore를 가지고 있는 process가 semaphore를 잡고 sleep을 할수도 있다. 왜냐하면 다른 process가
+        똑같은 semaphore를 얻으려했을 때 deadlock에 빠지지 않게 하기 위해서이다.
+        ( 위와 같은 상황에서 2번째 process는 바로 sleep하고 semaphore를 잡고 있는 process가 진행될 수 있다. )        //
+    5. semaphore를 기다리는 동안 sleep해야 하는데 spin lock을 잡고 있는 동안에는 sleep할 수 없기 때문에,
+        semaphore와 spin lock은 같이 쓰일 수 없다.
+
+    만약 sleep이 필요한 상황이라면 semaphore를 쓸 수 밖에 없다.(the case when synchronizing with user-space)   //
+    semaphore는 flexibility of sleeping을 제공하기 때문에 semaphore를 사용하는 것이 더 편하다.
+    spin lock과 semaphore 중에 선택해야 한다면, lock hold time에 기반하여 선택해야 한다.
+    semaphore는 kernel preemption을 막지 않기 때문에 semaphore를 잡고 있는 code가 preempt될 수 있다.
+        -> semaphore do not adversly affect scheduling latency.    
+
+    Counting and Binary Semaphores
+        semaphore는 한번에 여러 lock holder를 허용할 수 있다. spin lock은 한번에 하나의 holder만을 허용할 수 있는
+         반면에, semaphore는 선언할 때 몇명의 holder를 허용할 지 정할 수 있다. 이 값은 usage count or count라고 부른다.
+        가장 흔한 count 값은 1이다. 이때에는 spin lock과 같이 holder를 한명만 가질 수 있다.
+            -> binary semaphore or mutex라고 부른다.
+        count는 1보다 큰 값을 가질 수 있는데 이러한 semaphore를 counting semaphore라고 부른다. 
+        counting semaphore는 한번에 count 값만큼의 holder를 가질 수 있다. 많이 쓰이지는 않는다.
+
+        semaphore는 일반화된 locking mechanism으로써 Dijkstra에 의해 만들어졌다. 
+        down() :
+            처음에는 P()였다. count를 1만큼 줄이면서 semaphore를 얻으려고 하는 할 때 쓰는 함수이다.
+            만약 1만큼 줄인 count가 0이거나 0보다 크다면 semaphore를 얻고 critical region에 들어가게 된다.
+            count가 음수가 되었다면, task는 wait queue에 들어가고 processor는 다른 일은 한다.
+            * You down a semaphore to acquire it
+        up() :
+            처음에는 V()였다. semaphore를 release할 때 쓰인다. count를 1 증가시키고 waiting queue에 task가 
+             있다면 waiting task를 깨우고 semaphore를 얻게 한다.
+
+    Creating and Initializing Semaphores
+        semaphore의 구현은 architecture-dependent하다. <asm/semaphore.h>에 있는 struct semaphore가
+        semaphore를 나타낸다. 
+
+        /* declare semaphore statically */
+        struct semaphore name;
+        sema_init(&name, count);
+
+        /* create the more common mutex */
+        static DECLARE_MUTEX(name);
+
+        보통 semaphore는 더 큰 structure의 부분으로 dynamic하게 만들어진다. 
+        이런 상황에서는 indirect pointer reference만 가지고 있다. sem은 struct semaphore의 pointer이다.
+        
+        /* initialize semaphore dynamically */
+        sema_init(sem, count);
+
+        /* initialize mutex dynamically */
+        init_MUTEX(sem);
+
+    Using Semaphores
+        down()은 task가 semaphore를 기다리려고 sleep할 때 state를 TASK_UNINTERRUPTIBLE로 만든다.
+        down_interruptible()은 state를 TASK_INTERRUPTIBLE로 만든다. 그러므로 down()을 쓰지 말고
+         down_interruptible()을 쓰는 것이 맞다. down_interruptible()은 sleep한 task가 signal에 의해
+         깨워졌을 때 -EINTER를 return한다.
+
+        down_trylock()은 blocking없이 semaphore를 얻으려고 시도하는 함수이다. 만약 semaphore를 얻을 수 없다면
+         sleep하는 것이 아니라 즉시 0이 아닌 값을 return한다. semaphore를 얻었다면 0을 return한다.

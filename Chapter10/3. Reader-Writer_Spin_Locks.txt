@@ -1,0 +1,31 @@
+Reader-Writer Spin Locks
+    lock의 사용은 reader, writer로 나뉠 수 있다.
+    write를 할 땐, write와 read 모두 막아야 한다. read를 할 땐, write만 막으면 된다.
+    여러 명이 동시에 읽는 것은 가능하다. 
+
+    Reader-Writer spin lock이 lock을 reader와 writer로 나눠서 제공한다.
+    기본 사용은 spin lock과 유사하다.
+
+    DEFINE_RWLOCK(mr_rwlock);       /* initialize reader-writer spin lock */
+
+    read_lock(&mr_rwlock);
+    /* critical section ( read only ) */
+    read_unlock(&mr_rwlock);
+
+    write_lock(&mr_rwlock);
+    /* critical section ( read and write ) */
+    write_unlock(&mr_rwlock);
+
+    write를 해야 하는 일이 있다면 처음부터 writer lock을 얻어야 한다. reader lock을 얻었다가
+    나중에 writer lock을 얻으려하면 deadlock에 빠지게 된다.
+        read_lock(&mr_rwlock);
+        write_lock(&mr_rwlock);         /* waiting for reader to release lock */
+
+    한 thread가 같은 reader lcok을 계속 얻으려하는 것은 안전하다. 
+    만약 어떤 lock에 대해 interrupt handler들이 reader뿐이라면 interrupt를 막을 필요가 없다.
+     따라서 read_lock()을 read_lock_irqsave() 대신 사용할 수 있다. 하지만 writer가 있을 때는 
+     write_lock_irqsave()를 써야 한다.
+
+    Linux의 reader-writer lock은 writer보다 reader를 더 선호한다.
+     reader가 이미 lock을 잡고 있고 writer가 unlock을 기다리고 있는 상황에서 새로운 reader들은 계속
+     lock을 얻을 수가 있다. 이렇게 되면 writer는 모든 reader들이 lock을 놓을 때까지 기다려야 한다.

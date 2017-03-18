@@ -1,0 +1,28 @@
+Reader-Writer Semaphores
+    spin lock과 같이 semaphore도 reader-writer semaphore가 있다.
+    reader-writer semaphore는 struct rw_semaphore로 나타낸다.
+
+    /* statically declared reader-writer semaphore is created */
+    static DECLARE_RWSEM(name);
+
+    /* initialize reader-writer semaphore created dynamically */
+    init_rwsem(struct rw_semaphore *sem)
+
+    writer에게만 mutual exclusion은 필요로 하지만 모든 reader-writer semaphore는 mutex이다.( count = 1 )
+    writer가 없다면 다수의 reader가 동시에 lock을 잡을 수 있다.
+    모든 reader-writer semaphore는 uninterruptible sleep을 사용해서 down()만 존재한다.
+    down_read(), up_read(), down_write(), up_write()가 있다.
+
+    down_read_trylock(), down_write_trylock() :
+        parameter로 reader-writer semaphore를 가리키는 pointer가 들어가고
+        lock을 얻었을 때는 0이 아닌 수를, 이미 lock이 contended라면 0을 return한다.
+        이 함수들은 normal semaphore의 함수들과 반대이다.
+        * down_trylock() : lock을 얻었을 때 0을 return.
+                            못 얻었을 때 0이 아닌 수를 return.
+
+    downgrade_write() :
+        reader-writer spin lock에는 없는 reader-writer semaphore에만 있는 함수이다.
+        이미 얻은 write lock을 read lock으로 바꾸는 atomic 함수이다.
+
+    reader-writer spin lock과 같이 reader-writer semaphore도 write와 read가 명확히 구분되어있을 때만 써야한다.
+    reader-writer mechanism을 지원하는데는 cost가 있기 때문에 code가 reader/writer로 제대로 나눠져있을 때만 가치가 있다.

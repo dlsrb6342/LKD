@@ -1,0 +1,81 @@
+Atomic Operations
+    atomic operation - 
+        interrupt없이 atomic하게 실행되는 instruction을 말한다.
+        나눌 수 없는 instruction이다.
+        atomic operator를 사용하면 race가 생길 수 없다.
+    kernel은 integer와 individual bit에 관한 2개의 atomic operation을 제공한다.
+    direct atomic operation이 적은 architecture들은 memory bus를 lock하는 operation을 제공한다.
+    memory bus를 lock함으로써 다른 memory에 영향을 끼치는 operation이 동시에 일어나지 않게 한다.
+
+    Atomic Integer Operations
+        integer atomic operation은 atomic_t라는 특별한 data type으로 한다.
+        atomic_t는 여러가지 이유로 C의 int type이 해당 function에 직접적으로 사용되지 않게 하기 위해 사용한다.
+            1. atomic function에서는 atomic_t type만 사용되어야 한다.
+                atomic operation에서는 이러한 special type만 쓰여야 하고 nonatomic function에는 
+                special type이 쓰여서는 안된다.
+            2. atomic_t의 사용은 compiler가 값에 접근하는 것은 optimize하지 않게 한다.
+                이것은 atomic operation이 alias가 아닌 정확한 memory address를 받을 수 있게 하므로 중요하다.
+            3. atomic_t의 구현에서 architecture-specific한 차이를 숨겨준다.
+        
+        어떤 machine에서든 integer가 32bit이지만 developer들은 atomic_t가 24bit를 안넘을 것이라 생각했다.
+        SPARC에서는 atomic operation을 이상하게 구현해놨다.
+            32bit integer의 lower 8bit를 lock을 위해 사용했다. SPARC가 instruction level에서의 
+            적절한 support가 없기 때문에 lock을 atomic type에 concurrent access를 막기위해 사용됐다. 
+            결과적으로 SPARC architecture에서는 24bit만 사용가능했다. 
+            최근에 SPARC도 32bit atomic_t를 fully 제공하게 해서 이런 한계가 없어졌다.
+
+        atomic_t v = ATOMIC_INIT(0);    /* define v and initialize it to zero */
+        atomic_set(&v, 4);              /* v = 4 */
+        atomic_add(2, &v);              /* v = v + 2 */
+        atomic_inc(&v);                 /* v = v + 1 */
+        atomic_read(&v);                /* return v after convert atomic_t to int */
+
+        atomic integer operation은 보통 counter를 구현할 때 쓰인다. counter에 복잡한 lock을 거는 것은
+        너무 지나치기 때문에 atomic_inc(), atomic_dec()를 사용한다.
+        또 다른 atomic integer operation의 사용은 atomic하게 값을 test할 때 쓰인다.
+        int atomic_dec_and_test(atomic_t *v);
+        이 함수는 주어진 atomic value를 하나 줄이고 결과가 0이라면 true를 return하는 함수이다.
+
+        atomic operation은 inline assembly로 inline function을 통해 구현되어있다. 
+        어떤 함수가 본질적으로 atomic이라면 그 함수는 보통 macro이다.
+        예를 들어 a read of a single word는 항상 atomic이다. 이 작업은 write to that word를
+         하는 도중에 완료되지 않는다. write를 하기 전이나 하고 난 후에 complete된다.
+
+        보통 atomic operation이 복잡한 locking mechanism보다 더 선호되고 복잡한 synchronizaton method보다
+         overhead와 cache-line thrashing이 적다.
+
+    64-Bit Atomic Operations
+        64-Bit variant : atomic64_t
+        atomic64_t는 64bit의 atomic integer를 제공하지만 32 bit인 atomic_t와 같은 기능을 한다.
+        atomic_t에서 쓰이던 함수의 앞의 atomic을 atomic64로만 바꿔주면 atomic64_t의 함수가 된다.
+        atomic64_t는 long 타입의 integer를 가지고 있다.
+
+        atomic64_t는 32bit machine에서 지원되지 않는다. 따라서 developer는 portability를 위해
+         atomic64_t 대신 atomic_t를 사용해야 한다.
+
+    Atomic Bitwise Operations
+        kernel은 architecture-specific한 bit level에서의 function들도 제공한다.
+        bitwise function은 보통의 memory address를 가지고 작동한다. 
+        argument로는 pointer와 bit number가 들어간다. bit number는 제한이 없다.
+        * 32-bit machine에서 
+          bit 31    : most significant bit
+          bit 0     : least significant bit
+          bit 32    : least significant bit of following word
+        그러나 보통 32-bit machine에서는 0 ~ 31, 64-bit machine에서는 0 ~ 64가 쓰인다.
+
+        function이 일반적인 pointer를 써서 작동하기 때문에 atomic_t type과는 관련이 없다.
+        대신 어떤 data를 가리키는 pointer이든, 똑같이 사용할 수 있다.
+
+        편리를 위해 nonatomic한 bitwise function도 제공된다. 이 function들은 atomic한 function들과
+        똑같이 작동하지만 atomicity를 보장하지 않는다. 이름은 atomic한 function들의 앞에 underbar 2개를 붙여주면 된다.
+
+        int find_first_bit(unsigned long *addr, unsigned int size);
+        int find_first_zero_bit(unsigned long *addr, unsigned int size);
+        위의 두 함수는 처음으로 set(or unset)된 bit를 찾는 함수이다.
+        첫번째 argument로 시작 pointer를 받고 두번째 argument로 search할 총 크기를 받는다.
+        이 함수들은 찾은 bit의 bit number를 return한다.
+
+        atomic integer operation과 달리, bitwise operation을 사용할지 않을지에 대한 선택이 없다.
+        -> bitwise operation이 특정 bit를 set하는 유일한 portable way이다.
+        nonatomic을 쓸지 atomic을 쓸지만 선택하면 되는데 만약 code가 race condition에 대해 안전하다면
+         architecture에 따라 nonatomic을 쓰는게 더 빠를 수 있다.

@@ -1,0 +1,72 @@
+Spin Locks
+    In real life, critical region은 여러 function들로 이루어진다.
+    이런 복잡한 일들은 atomic operation으로 막을 수 없기 때문에 lock이 필요하다.
+
+    가장 흔한 lock scheme이 spin lock이다. spin lock은 하나의 thread가 잡고 있을 수 있는 lock이다.
+    어떤 thread가 spin lock을 잡고 있는 것을 lock이 contended되었다고 한다.
+    lock이 contended일 때 다른 thread가 lock을 얻으려고 한다면 thread는 lock이 사용가능해질 때까지 
+     busy loops(spin) waiting을 하게 된다. 
+    만약 lock이 contended되지 않을 때는 바로 lock을 얻고 실행된다. 
+
+    contended spin lock이 thread를 lock이 사용가능해질 때까지 spin하게 한다는 사실이 가장 중요하다.
+    spin lock을 오래 잡고 있는 것은 현명하지 못하다. spin lock의 기본 개념은 가벼운 single-holder lock이다.
+    * 가벼운 single-holder lock : lock을 짧은 기간동안만 잡고 있는 것
+    contended lock에 대한 다른 방법으로는 sleep했다가 lock이 사용 가능해지면 wake-up하는 방법이 있다.
+    그러나 이 방법은 context-switch가 2번 일어나기 때문에 overhead가 크다. 또 spin lock보다 더 많은 코드가 필요하다.
+    따라서 2번의 context-switch가 실행되는 시간보다 적게 spin lock을 잡고 있는 것이 현명하다.
+
+    Spin Lock Methods
+        spin lock은 architecture-dependent하고 assembly로 구현되어있다.
+        The basic use of a spin lock : 
+            DEFINE_SPINLOCK(mr_lock);
+            spin_lock(&mr_lock);
+            /* critical region */
+            spin_unlock(&mr_lock);
+
+        lock은 한 시점에서 동시에 한 thread에 의해서만 잡힐 수 있다. 따라서 한 thread만이 critical region에 들어갈 수 있다.
+        이는 multiprocessor의 동시성에 protection을 제공한다. 
+        uniprocessor에서는 lock이 쓰이지 않는다. 그저 kernel preemption을 enable / disable하는 것으로 대신한다.
+        
+        interrupt handler는 sleep할 수 없기 때문에 semaphore를 쓸 수 없고 spin lock을 쓸 수 있다.
+        만약 interrupt handler에서 lock을 쓴다면 lock을 얻기 전에 local interrupt를 모두 disable해줘야 한다.
+        그렇지 않으면 kernel code가 lock을 얻었을 때 interrupt가 와서 interrupt handler가 lock을 얻기 위해
+         spin을 하기 시작한다. 그러나 kernel code는 inerrupt handler가 끝날 때까지 lock을 놓아줄 수 없기 때문에
+         deadlock에 빠지게 된다. 다른 processor의 interrupt는 상관 없다.
+        spin_lock_irqsave(&mr_lock, flags) :
+            현재 interrupt 상태를 저장하고 locally disable한다. 그 다음 lock을 얻으려고 시도한다.
+        spin_lock_irqrestore(&mr_lock, flags) :
+            unlock을 하고 interrupt 상태를 restore한다.
+
+        항상 interrupt가 enable된 상태인 것을 알 수 있다면 굳이 이전 상태를 restore할 필요가 없다. 
+        spin_lock_irq(&mr_lock) :
+            disable interrupt
+        spin_unlock_irq(&mr_lock) :
+            unconditionally enable interrupt
+        kernel의 사이즈와 복잡도가 커지면 interrupt의 상태를 확신할 수 없기 때문에 이 방법은 추천하지 않는다.
+
+    Other Spin Lock Methods
+        spin_lock_init() :
+            dynamic하게 만들어진 spin lock을 initialize한다.
+            ( direct reference는 없고 pointer만 있는 spinlock_t )
+        spin_trylock() :
+            spin lock을 얻으려고 시도하는 함수이다. 만약 lock이 contended라면, spin을 도는 것이 아니라 0을 return한다.
+            lock을 얻는 것을 성공했다면 0이 아닌 수를 return한다.
+        spin_is_locked() :
+            lock이 현재 contended라면 0이 아닌 수를 return하고, contended라면 0을 return한다.
+
+    Spin Locks and Bottom Halves
+        spin_lock_bh() :
+            lock을 얻으려하고 모든 bottm halves를 disable한다.
+        spin_unlock_bh() :
+            unlock을 하고 모든 bottom halves를 enable한다.
+
+        bottom half는 process context code를 preempt할 수 있기 때문에 bottom half와 process context code 사이에 
+        shared data가 있다면 lock도 걸어야 하고 bottom half도 disable해야 한다. 마찬가지로 interrupt handler가 bottom half를
+        preempt할 수 있기 때문에 둘 사이에 shared data가 있으면 lock을 걸고 interrupt를 disable해야 한다.
+
+        똑같은 tasklet은 동시에 다른 processor에서 실행될 수 없기 때문에 한가지 type의 tasklet에서는 lock이 필요없다.
+        하지만 서로 다른 type의 tasklet 사이에 shared data가 있다면 lock을 걸어야 한다. 
+        tasklet은 다른 tasklet를 절대 preempt하지 않기 때문에 bottom half는 disable할 필요없다.
+
+        softirq의 경우, 같은 type의 softirq가 동시에 다른 processor에서 실행될 수 있기 때문에 어떤 경우에서든 lock이 필요하다.
+        하지만 softirq은 다른 softirq를 절대 preempt하지 않기 때문에 bottom half는 disable할 필요없다.
