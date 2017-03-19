@@ -1,0 +1,20 @@
+Completion Variables
+    completion variables는 한 task가 다른 task에게 어떤 한 event가 발생했다고 
+     signal을 보내야 하는 상황에서 2 task를 synchronize하는 쉬운 방법이다.
+    한 task는 다른 task가 어떤 일을 다 할 때까지 completion variable을 기다린다. 
+    해당 task가 일을 다 끝냈을 때, completion variable을 이용해 기다리던 task를 깨운다.
+    semaphore와 비슷한데 smaphore의 simple solution이다.
+    예를 들어, vfork() system call에서 child process가 exec나 exit을 했을 때
+     parent process에게 알려주는데에 쓰인다.
+
+    completion variable은 struct completion type으로 표현된다.
+
+    DECLARE_COMPLETION(mr_comp);        /* initialize statically created completion variable */
+    init_completion(mr_comp);           /* initialize dynamically created completion variable */
+
+    wait_for_completion(mr_comp);       
+    complete(mr_comp);
+
+    흔한 사용 중에 하나는 data structure의 한 멤버로 dynmaic하게 생성된 completion variable을 갖게 하는 것이다.
+     해당 data structure의 initialization을 기다리기 위해 wait_for_completion()을, 
+     initialization이 끝났음을 알리기 위해 complete()를 호출한다.

@@ -1,2 +1,35 @@
 Mutexes
-    
+    대부분의 semaphore user들은 semaphore를 count 1로 mutual exclusion lock으로써 사용했다.
+    그러나 semaphore는 다소 일반적이고 사용에 많은 제약을 주지 않았다. 
+    이는 간단한 locking으로써 사용할 때 힘들게 했다. 그래서 나온 것이 mutex이다.
+
+    mutex는 struct mutex로 표현된다. count가 1인 semaphore와 비슷하게 동작한다.
+    그러나 더 간단한 interface와 효율적인 performance, 사용에 대한 추가적인 제약사항들이 있다.
+
+    DEFINE_MUTEX(name);     /* define a mutex statically */
+    mutex_init(&mutex);     /* initialize a mutex dynamically */
+
+    mutex_lock(&mutex);
+    /* critical region */
+    mutex_unlock(&mutex);
+
+    semaphore와 다르게 usage count를 관리할 필요가 없어 더 간단하다.
+    Unlike semaphore, mutex has a stricter, narrower use case.
+
+    1. 한번에 단 하나의 task만 mutex를 잡을 수 있다. 즉 mutex의 usage count가 항상 1이다.
+    2. lock을 한 context에서 unlock을 해야 한다. 그러므로 mutex는 kerne과 user-space의 synchronization에는
+        잘 어울리지 않는다.
+    3. recursive한 lock, unlock은 허용되지 않는다. 
+    4. process는 mutex를 잡고 exit할 수 없다. (sleep은 가능)
+    5. interrupt handler나 bottom half는 mutex를 잡을 수 없다. (mutex_trylock()을 써서도 잡을 수 없다.)
+    6. mutex는 무조건 official API를 통해서만 관리할 수 있다. 이 chapter에서 소개된 방법으로만 가능하다.
+
+    kernel configuration option에서 CONFIG_DEBUG_MUTEXES를 enalbe해놓으면 
+     위의 제약사항들에 대한 debugging을 해준다. 이를 통해 mutex 사용을 관리하고 간단히 하는 것을 보장한다.
+
+    Semaphores Versus Mutexes
+        만약 mutex의 추가적인 제약사항들이 사용하는데에 불편을 준다면 semaphore를 쓰는 것이 좋을 것이다.
+
+    Spin Locks Versus Mutexes
+        interrupt context에서는 무조건 spin lock을, task가 sleep하는 동안 lock을 잡고 있어야 하는
+         경우에는 무조건 mutex를 사용해야 한다.
