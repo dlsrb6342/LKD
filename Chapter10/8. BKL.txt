@@ -1,2 +1,25 @@
 BKL
-    
+    global spin lock that was created to ease the transition 
+     from Linux's original SMP implementaion to fine-grained locking
+
+    1. BKL을 잡고 있는 동안 sleep할 수 있다. lock은 task가 unschedule되면 자동으로 drop되고
+        reschedule되었을 때 다시 얻는다. 물론 BKL을 잡고 sleep하는 것이 항상 안전하다는 것은 아니고
+        단지 그렇게 할 수 있고 deadlock에 빠지지는 않을 것이라는 의미이다.
+    2. BKL은 recursive lock이다. 하나의 process가 lock을 여러번 얻을 수 있고 deadlock에 빠지지 않는다.
+    3. BKL은 process context에서만 사용할 수 있다. spin lock과 다르게 interrupt context에서는 얻을 수 없다.
+    4. 새로운 code에 BKL을 사용하는 것은 금지되어있다. kernel이 release될수록, BKL을 쓰는
+        drivers, subsystems가 줄고 있다.
+
+    새로운 code에 BKL을 사용하는 것은 못하게 하지만 여전히 kernel에서 잘 쓰이고 있다.
+    BKL은 spin lock과 비슷하지만 위의 특징을 가지고 있다.
+
+    lock_kernel();          /* acquires the lock */
+    unlock_kernel();        /* release the lock */
+    kernel_locked();        /* currently held -> nonzero, otherwise zero */
+
+    recursive lock이기 때문에 lock_kernel()을 여러번 호출했을 시 같은 수만큼의 unlock_kernel()을 호출해야 한다.
+    BKL을 잡고 있는 동안에는 kernel preemption을 disable시킨다.
+     그래서 UP kernel에서는 BKL이 실제로 physical locking을 하지는 않는다.
+
+    BKL의 주요한 issue 중의 하나는 lock이 무엇을 protect하고 있는가이다. BKL은 보통 data가 아니라 code와 관련이 있다. 
+    정확히 어떤 것이 lock되어있는지 결정하기 쉽지 않기 때문에 BKL을 spin lock으로 바꾸기가 어렵다.

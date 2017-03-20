@@ -1,0 +1,30 @@
+Sequential Locks
+    seq locks는 2.6에서 처음 소개된 새로운 lock type이다.
+    sequence counter를 관리해서 작동한다. shared data를 읽으려고 할때, lock을 얻고 
+     sequence counter를 1 증가시킨다. read를 하기 전이나 하고 난 후에는, 항상 sequence counter를
+     확인하고 만약 읽기 전과 후가 같다면 read 중간에 write를 하지 않은 것이다. 그리고 만약 그 값이 짝수이면,
+     write를 하고 있지 않은 것이다. 
+
+    seqlock_t mr_seq_lock = DEFINE_SEQLOCK(mr_seq_lock);        /* define a seq lock */
+    write_seqlock(&mr_seq_lock);
+    /* write lock is obtained */
+    write_sequnlock(&mr_seq_lock);
+
+    unsigned long seq;
+    do{
+        seq = read_seqbegin(&mr_seq_lock);
+        /* read data */
+    }while(read_seqretry(&mr_seq_lock));
+    
+    write하는 부분은 spin lock과 비슷하지만 read가 다르다.
+
+    seq lock은 reader가 많고 writer가 적은 환경에서 가볍고 scalable한 lock이 필요할 때 유용하다.
+    seq lock은 reader보다 writer를 선호한다. 다른 writer만 없다면 write lock을 획득하는 것은 항상 성공한다.
+    pending writer가 있는 경우에는 reader는 더이상 write lock을 잡고 있는 것이 없을 때까지 loop를 돌게 된다.
+
+    1. data에 reader가 많은 경우.
+    2. data에 writer가 적은 경우.
+    3. 수는 적지만 reader가 절대 writer를 starve하게 하지 못하게 하고 writer를 더 선호하고 싶은 경우.
+    4. data가 simple하지만 어떤 이유로 인해 atomic하게 만들 수 없는 경우.
+
+    위의 경우들 중 대부분을 만족할 때 seq lock이 알맞다.

@@ -16,7 +16,7 @@ Contention and Scalability
         하나의 lock이 보호하고 있는 data의 size나 양을 말한다.
 
         coarse lock은 많은 양의 data를 보호하고(entire subsystem's set of data structure)
-        fine-grained lock을 작은 양의 data를 보호한다.(only a single element)
+        fine-grained lock은 작은 양의 data를 보호한다.(only a single element)
         사실 대부분의 lock이 위 2가지 사이에 있다.(a single sturcture or a list of structures)
 
         kernel <= 2.4에서는 scheduler가 단 하나의 single runqueue가 있었다. 2.6 초기부터는

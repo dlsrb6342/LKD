@@ -1,0 +1,23 @@
+Ordering and Barriers
+    multiprocessor나 hardware device와의 synchronization을 할때, memory-reads, memory-write의
+     순서가 중요할 때가 있다.
+    모든 processor가 이러한 ordering requirement를 충족시킬 machine instruction을 제공한다.
+    reordering을 하지 않게 하는 instruction도 제공한다.
+    이러한 instruction을 barriers라고 한다.
+
+    compiler나 processor는 다른 context에 있는 코드에 대해서 알 수가 없다.
+
+    rmb() :
+        read memory barrier를 제공하는 함수로, 이 함수 전과 후의 load call은 reorder될 수 없다.
+    wmb() :
+        write barrier를 제공하는 함수로, rmb()와 똑같은 방식으로 동작한다.
+    mb() :
+        read barrier, write barrier 모두 제공하는 함수이다.
+    read_barrier_depends() :
+        호출 후의 나오는 load에 관련된 호출 전의 load call에 대해서만 barrier를 제공하는 함수이다.
+    smp_rmb(), smp_wmb(), smp_mb(), smp_read_barrier_depends() :
+        이 함수들은 SMP kernel에서는 보통의 memory barrier를 제공하지만
+        UP kernel에서는 compiler barrier만 제공한다.
+    barrier() :
+        compiler가 load나 store를 reorder하는 것을 막는 함수이다. 보통 compiler는 reorder 시에 문제가 있는지
+        code를 보고 알지만 만약 다른 context에 있던 code라면 알 수 없기 때문에 이 함수를 쓴다.
