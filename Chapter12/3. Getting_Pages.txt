@@ -1,0 +1,30 @@
+Getting Pages
+    kernel은 하나의 low-level mechanism으로 memory를 요청할 수 있게 해준다.
+
+    struct page * alloc_pages(gfp_t gfp_mask, unsigned int order) :
+        위 함수를 통해 2^order의 연속된 physical pages를 할당받고 첫 페이지의 struct page pointer를 
+         return한다. 에러일 경우 NULL이 return된다. 
+
+    void * page_address(struct page *page) :
+        위 함수를 통해 physical page에 현재 들어있는 logical address을 가리키는 pointer를 return한다.
+
+    unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order) :
+        만약 struct page가 필요가 없다면 위 함수를 쓸 수 있다. alloc_pages()와 똑같이 행동하지만
+        바로 첫 page의 logical address를 return한다.
+
+    struct page * alloc_page(gfp_t gfp_mask)
+    unsigned long __get_free_page(gfp_t gfp_mask) 
+        order를 생략한 이 함수들은 딱 하나의 page만 할당해준다.
+
+
+Getting Zeroed Pages
+    unsigned long get_zeroed_page(unsigned int gfp_mask) :
+        0으로 채워진 page를 원한다면 위 함수를 쓰면 된다. __get_free_pages()와 똑같이 작동하지만
+        할당된 모든 page가 0으로 채워져있다. 
+
+
+Freeing Pages
+    void __free_pages(struct page *page, unsigned int order)
+    void free_pages(unsigned long addr, unsigned int order)
+    void free_page(unsigned long addr)
+        더이상 필요없어진 page를 free하는 함수들이다. 할당받은 page만 free하도록 주의해야 한다.

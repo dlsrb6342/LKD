@@ -14,7 +14,7 @@ Time Accounting
     The Virtual Runtime
         vruntime variable(struct_sched_entity에 있음)는 runnable process의 총 갯수로 normalized(weighted)한
          실제 실행 시간이다.
-        unit : nanasecond -> timer tick과 관련이 없다.
+        unit : nanosecond -> timer tick과 관련이 없다.
         vruntime은 CFS가 ideal multitasking processor에 근접하도록 도와준다.
         ideal multitasking processor는 모든 runnable process가 perfectly multitask되기 때문에 vruntime을 필요로
          하지 않는다. 즉 priority가 같은 process들은 vruntime 값이 같을 것이다.(equal, fair share of the processor)

@@ -1,0 +1,44 @@
+Zones
+    어떤 page는 memory의 physical address때문에 특정 task에 쓰일 수 없다.
+    위와 같은 hardware limitation때문에 kernel은 모든 page를 똑같이 대할 수 없어서 Zone으로 나누었다.
+    비슷한 특성을 가진 page들을 zone으로 묶어 관리한다. 특히 Linux는 memory addressing에 관한 
+     hardware의 2가지 단점을 다루기 위해 zone을 쓴다.
+
+        1. 어떤 hardware들은 DMA(direct memory access)를 특정 주소만 가능하다.
+        2. 어떤 architecture는 virtually 접근할 수 있는 것보다 
+            훨씬 더 많은 양의 memory를 physically하게 접근할 수 있다                                //
+    
+    이러한 단점때문에 Linux는 4가지의 primary memory zone을 가진다.
+        1. ZONE_DMA :
+            DMA할 수 있는 pages
+        2. ZONE_DMA32 :
+            ZONE_DMA와 같지만 32-bit device만 접근할 수 있는 pages이다.
+        3. ZONE_NORMAL :
+            normal, regularly mapped pages
+        4. ZONE_HIGHMEM :
+            high memory를 가지는 zone이다.
+            high memory : kernel's address space에 영구적으로 mapping되지 않는 page이다. (User-space)
+
+    이 zone들은 architecture-dependent하게 사용되고 나뉘어진다.
+    모든 address에 대해 DMA가 가능하다면 ZONE_DMA은 비워져있고 ZONE_NORMAL에서 할당받는다.
+    만약 DMA가 가능한 address가 정해져있다면 ZONE_DMA에 그 address의 page들이 들어간다.
+
+    ZONE_HIGHMEM도 architecture-dependent하게 사용되는데
+    32-bit x86 system에서는 896KB 위의 memory가 전부 ZONE_HIGHMEM에 속한다.
+    하지만 다른 architecture에서는 모든 memory가 directly mapped되기 때문에 ZONE_HIGHMEM은 비워져있다.
+    ZONE_HIGHMEM에 속한 memory를 high memory, 속하지 않은 memory를 low memory라고 한다.
+    * 64-bit machine에서는 high memory가 없다. -> ZONE_HIGHMEM이 없다.
+
+    ZONE_NORMAL은 다른 zone들이 필요한만큼 가져가고 남은 부분을 가진다. 
+
+    kernel은 조건에 맞는 특정 zone에서 page allocation하는 것을 선호하지만, 그렇게 안될 때도 있다.
+    어떤 경우에는 다른 zone에서 page를 할당할 경우도 있다. 하지만 여러 zone에 걸쳐서 할당하지는 않는다.
+
+    zone은 struct zone으로 표현된다. 
+    spinlock_t lock :
+        해당 structure에 concurrent access를 막기 위한 spin lock.
+        zone안에 있는 모든 page에 대한 접근을 막는것이 아니라 struct zone에 대한 동시적 접근을 막는 것이다.
+    unsigned long watermark[NR_WMARK] :
+        해당 zone의 minimum(low), high watermark를 저장한다. kernel은 watermark를                 //
+    const char *name :
+        the name of this zone

@@ -1,0 +1,53 @@
+Pages
+    kernel안의 memory allocation은 kernel밖의 memory allocation과는 다르게 쉽지 않다.
+    user-space와 다르게 kernel-space는 쉽게 memory를 할당해 줄 만큼의 용량을 가지고 있지 않다.
+
+    kernel은 memory management에서 physical page를 기본 단위로 쓰고 있다.
+    processor의 가장 작은 addressable unit은 a byte or a word이지만
+     MMU(memory management unit)은 page를 다룬다.
+    MMU : 
+        memory를 관리하고 vitual address를 physical address로 변환해주는 hardware
+
+    the MMU maintains the system's page tables with page-sized granularity                  //
+
+    많은 architecture들이 다양한 size의 page를 제공한다. 보통 32-bit는 4KB, 64-bit는 8KB이다.
+    모든 physical page는 하나의 struct page structure로 표현된다.
+
+    struct page {
+        unsigned long           flag;
+        atomic_t                _count;
+        atomic_t                _mapcount;
+        unsigned long           private;
+        struct address_space    *mapping;
+        pgoff_t                 index;
+        struct list_head        lru;
+        void                    *virtual;
+    }
+    flag :
+        page의 상태를 저장한다. 예를 들어 page가 dirty인지, locked in memory인지를 저장한다.
+        적어도 32개의 서로 다른 flag가 동시에 있을 수 있다.
+    _count :
+        page의 usage count를 저장한다. 즉 how many references there are to this page.
+        이 값이 음수가 되면 아무도 쓰고 있지 않다는 것이다. Kernel code는 이 변수에 직접적으로 접근하면 안되고
+        page_count()라는 함수로 접근해야 한다.
+        page_count() :
+            parameter로 struct page를 받고, _count가 음수일 때 0을 return하고 다른 경우에는 양수는 return한다.
+        page는 private data로써 혹은 process의 page table에 mapping으로써 page cache되어 사용될 수 있다.
+        * private data : pointed at by private member
+          page cache : 해당 page와 관련있는 address_space object를 가리키는 mapping member
+    virtual :
+        the page's virtual address.
+        high memory라 불리는 memory들은 kernel의 address space와 영구적으로 mapping되지 않는다. 이 경우에는
+        virtual이 NULL 값을 가지고, 필요하다면 해당 page는 dynamic하게 mapping해야 한다.
+
+    중요한 것은 struct page는 virtual page가 아닌 physical page와 관련된 structure이다. 그러므로 이 structure가
+    묘사하는 것은 잘해야 영구적이다. page에 들어있는 data가 계속 존재한다하더라도 계속되는 swapping때문에 항상 같은 page sturcture와
+    연관되지 않는다. 이 structure는 내부의 data를 나타내는 것이 아니라 physical memory를 나타낸다.
+
+    kernel은 이 structure를 이용해 system에 있는 모든 page를 관리한다. page가 free인지, not free인지 알 수 있고
+    만약 not free라면 kernel은 누가 이 page를 가지고 있는지 알아야 한다. 
+    * Possible owner : user-space process, dynamically allocated kernel data,
+                        static kernel code, the page cache...
+
+    시스템의 모든 physical page마다 이 struct page가 할당되어있어 memory waste가 클 것이라 생각할 수 있는데
+    전체 system의 상대적인 비율로 보면 시스템의 모든 physical page를 관리하는데에 있어 그렇게 높은 cost는 아니다.

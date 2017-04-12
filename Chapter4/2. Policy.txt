@@ -63,7 +63,7 @@ Timeslice
         높은 nice value -> 낮은 weight -> 적은 proportion of the processor
 
     Linux의 CFS scheduler에서는 새롭게 실행될 processor가 어느정도의 proportion of processor를 소모할지에 대해 결정하는 기능이다.       //
-    만약 현재 실행중인 process보다 proportion of processor가 적다면, 실행중인 process를 preempt하고 즉시 실행된다.
+    만약 현재 실행중인 process보다 proportion of processor가 조금 썼다면, 실행중인 process를 preempt하고 즉시 실행된다.
 
 
 The Scheduling Policy in Action

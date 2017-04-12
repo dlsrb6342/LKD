@@ -1,0 +1,31 @@
+kmalloc()
+    user-space에서 쓰이는 malloc()과 비슷하다. 
+    kmalloc()은 kernel memory를 byte-sized로 얻는 함수이다.
+    한 page가 다 필요하면 앞서 얘기했던 것이 더 좋지만 보통 kernel에서는 kmalloc()을 더 선호한다.
+
+    void * malloc(size_t size, gfp_t flags) :
+        이 함수는 최소 전달받은 size만큼의 byte의 pointer를 return한다.(physically contiguous)
+            * size보다 더 큰 byte를 return할 수도 있다.
+        충분한 memory가 있다면 항상 성공한다. 
+
+
+gfp_mask Flags
+    page allocation과 kmalloc()에서 쓰인 allocator flag는 unsigned int인 gfp_t type이다. 
+    * gfp = get_free_pages
+
+    Action Modifier
+        how the kernel is supposed to allocate the requested memory
+        sleep하면 안되는 interrupt handler에게 memory를 할당하는 상황같은 특별한 상황에서
+         적용되어야할 특정 방법을 의미한다.
+
+    Zone Modifier 
+        where to allocate memory
+    
+    Type
+        action과 zone modifier를 합쳐놓은 것으로 특정 type일 때 어떤 action modifier, zone modifier를
+        써야할지를 의미한다. 
+
+    kfree()
+        void kfree(const void *ptr)
+        kmalloc()을 통해 할당받은 block of memory를 반환한다.
+        kmalloc()을 통해 할당받은 memory가 아니거나 이미 반환한 memory에 대해서는 호출하면 안된다.
