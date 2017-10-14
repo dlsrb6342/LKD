@@ -1,0 +1,6 @@
+Overhead,Command,Shared Object,Symbol
+57.14% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+3.01% ,x11perf,libc-2.23.so ,[.] _int_malloc
+1.62% ,x11perf,[kernel.kallsyms] ,[k] unix_stream_read_generic
+1.34% ,x11perf,[kernel.kallsyms] ,[k] mutex_lock
+1.32% ,x11perf,[kernel.kallsyms] ,[k] __check_object_size

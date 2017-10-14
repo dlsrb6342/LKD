@@ -1,0 +1,6 @@
+Overhead,Command,Shared Object,Symbol
+31.14% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+2.80% ,x11perf,[kernel.kallsyms] ,[k] copy_user_generic_unrolled
+2.80% ,x11perf,[kernel.kallsyms] ,[k] unix_stream_read_generic
+2.00% ,x11perf,libX11.so.6.3.0 ,[.] XMoveWindow
+1.84% ,x11perf,libc-2.23.so ,[.] __GI___libc_recvmsg

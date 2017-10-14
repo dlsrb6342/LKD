@@ -1,0 +1,7 @@
+CPU CLOCK  2787000000
+Overhead,Command,Shared Object,Symbol
+39.55% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+2.67% ,x11perf,libX11.so.6.3.0 ,[.] _XGetRequest
+2.47% ,x11perf,libX11.so.6.3.0 ,[.] XCirculateSubwindows
+2.38% ,x11perf,[kernel.kallsyms] ,[k] do_sys_poll
+2.13% ,x11perf,[kernel.kallsyms] ,[k] finish_task_switch

@@ -1,0 +1,7 @@
+CPU CLOCK  2187500000
+Overhead,Command,Shared Object,Symbol
+46.15% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+2.37% ,x11perf,libc-2.23.so ,[.] _int_malloc
+1.94% ,x11perf,libX11.so.6.3.0 ,[.] _XGetRequest
+1.73% ,x11perf,[kernel.kallsyms] ,[k] copy_user_generic_unrolled
+1.49% ,x11perf,[kernel.kallsyms] ,[k] unix_stream_read_generic

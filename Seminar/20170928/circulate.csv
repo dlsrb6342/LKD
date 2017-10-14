@@ -1,0 +1,6 @@
+Overhead,Command,Shared Object,Symbol
+44.08% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+3.57% ,x11perf,[kernel.kallsyms] ,[k] copy_user_generic_unrolled
+3.51% ,x11perf,libX11.so.6.3.0 ,[.] _XGetRequest
+3.45% ,x11perf,libX11.so.6.3.0 ,[.] XCirculateSubwindows
+1.86% ,x11perf,[kernel.kallsyms] ,[k] unix_stream_read_generic

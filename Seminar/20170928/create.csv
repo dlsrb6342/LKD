@@ -1,0 +1,6 @@
+Overhead,Command,Shared Object,Symbol
+22.89% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+5.57% ,x11perf,[kernel.kallsyms] ,[k] unix_stream_read_generic
+3.23% ,x11perf,libxcb.so.1.1.0 ,[.] 0x000000000000bc7d
+2.58% ,x11perf,[kernel.kallsyms] ,[k] __check_object_size
+2.11% ,x11perf,libc-2.23.so ,[.] __libc_recv

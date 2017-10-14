@@ -1,0 +1,7 @@
+CPU CLOCK  932500000
+Overhead,Command,Shared Object,Symbol
+58.47% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+1.96% ,x11perf,libc-2.23.so ,[.] _int_malloc
+1.77% ,x11perf,[kernel.kallsyms] ,[k] common_file_perm
+1.58% ,x11perf,libc-2.23.so ,[.] malloc
+1.47% ,x11perf,[kernel.kallsyms] ,[k] __check_heap_object

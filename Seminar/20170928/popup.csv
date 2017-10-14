@@ -1,0 +1,6 @@
+Overhead,Command,Shared Object,Symbol
+43.91% ,x11perf,[kernel.kallsyms] ,[k] __lock_text_start
+2.47% ,x11perf,libX11.so.6.3.0 ,[.] _XGetRequest
+2.15% ,x11perf,[kernel.kallsyms] ,[k] copy_user_generic_unrolled
+2.01% ,x11perf,[kernel.kallsyms] ,[k] mutex_lock
+1.98% ,x11perf,libc-2.23.so ,[.] malloc
